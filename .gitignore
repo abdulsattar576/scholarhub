@@ -43,8 +43,9 @@ ENV/
 *_pb2.py
 *_pb2_grpc.py
 
-# Docker volume data
+# Docker volume data & local db clusters
 data/
+database/pgdata/
 postgres_data/
 redis_data/
 
