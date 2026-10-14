@@ -1,0 +1,201 @@
+syntax = "proto3";
+
+package scholarship.v1;
+
+service ScholarshipService {
+  rpc SearchScholarships(SearchScholarshipsRequest) returns (SearchScholarshipsResponse);
+  rpc GetScholarship(GetScholarshipRequest) returns (GetScholarshipResponse);
+  rpc SubmitCandidate(SubmitCandidateRequest) returns (SubmitCandidateResponse);
+  rpc ApproveCandidate(ApproveCandidateRequest) returns (ApproveCandidateResponse);
+  rpc ExpireCycles(ExpireCyclesRequest) returns (ExpireCyclesResponse);
+  rpc Health(HealthRequest) returns (HealthResponse);
+}
+
+enum OpportunityStatus {
+  OPPORTUNITY_STATUS_UNSPECIFIED = 0;
+  OPPORTUNITY_STATUS_DRAFT = 1;
+  OPPORTUNITY_STATUS_PUBLISHED = 2;
+  OPPORTUNITY_STATUS_INACTIVE = 3;
+  OPPORTUNITY_STATUS_RETIRED = 4;
+}
+
+enum CycleStatus {
+  CYCLE_STATUS_UNSPECIFIED = 0;
+  CYCLE_STATUS_DISCOVERED = 1;
+  CYCLE_STATUS_PENDING_REVIEW = 2;
+  CYCLE_STATUS_UPCOMING = 3;
+  CYCLE_STATUS_OPEN = 4;
+  CYCLE_STATUS_CLOSED = 5;
+  CYCLE_STATUS_ARCHIVED = 6;
+  CYCLE_STATUS_CANCELLED = 7;
+  CYCLE_STATUS_UNKNOWN = 8;
+}
+
+enum DegreeLevel {
+  DEGREE_LEVEL_UNSPECIFIED = 0;
+  DEGREE_LEVEL_BACHELORS = 1;
+  DEGREE_LEVEL_MASTERS = 2;
+  DEGREE_LEVEL_PHD = 3;
+  DEGREE_LEVEL_POSTDOC = 4;
+  DEGREE_LEVEL_OTHER = 5;
+}
+
+enum FundingType {
+  FUNDING_TYPE_UNSPECIFIED = 0;
+  FUNDING_TYPE_FULL = 1;
+  FUNDING_TYPE_PARTIAL = 2;
+  FUNDING_TYPE_TUITION_ONLY = 3;
+  FUNDING_TYPE_STIPEND_ONLY = 4;
+}
+
+enum InstitutionType {
+  INSTITUTION_TYPE_UNSPECIFIED = 0;
+  INSTITUTION_TYPE_PUBLIC = 1;
+  INSTITUTION_TYPE_PRIVATE = 2;
+  INSTITUTION_TYPE_OTHER = 3;
+}
+
+message SearchScholarshipsRequest {
+  string country_code = 1;
+  string query = 2;
+  DegreeLevel degree_level = 3;
+  string field_of_study = 4;
+  FundingType funding_type = 5;
+  CycleStatus status = 6;
+  InstitutionType institution_type = 7;
+  int32 page = 8;
+  int32 page_size = 9;
+  string sort_by = 10;
+}
+
+message SearchScholarshipsResponse {
+  repeated ScholarshipSummary items = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+  int32 total_pages = 5;
+}
+
+message ScholarshipSummary {
+  string id = 1;
+  string provider_id = 2;
+  string provider_name = 3;
+  string title = 4;
+  string description = 5;
+  string official_url = 6;
+  FundingType funding_type = 7;
+  OpportunityStatus status = 8;
+  repeated DegreeLevel degree_levels = 9;
+  repeated string target_country_codes = 10;
+  ScholarshipCycleSummary active_cycle = 11;
+  string last_verified_at_iso = 12;
+}
+
+message ScholarshipCycleSummary {
+  string id = 1;
+  string scholarship_id = 2;
+  string cycle_label = 3;
+  CycleStatus status = 4;
+  string open_at_iso = 5;
+  string deadline_at_iso = 6;
+  string deadline_local_date = 7;
+  string deadline_timezone = 8;
+  string deadline_precision = 9; // "DATETIME" or "DATE_ONLY"
+  string verified_at_iso = 10;
+}
+
+message GetScholarshipRequest {
+  string id = 1;
+  string cycle_id = 2;
+}
+
+message GetScholarshipResponse {
+  ScholarshipDetail scholarship = 1;
+}
+
+message ScholarshipDetail {
+  string id = 1;
+  string provider_id = 2;
+  string provider_name = 3;
+  string title = 4;
+  string description = 5;
+  string official_url = 6;
+  FundingType funding_type = 7;
+  OpportunityStatus status = 8;
+  repeated ScholarshipCycleSummary cycles = 9;
+  repeated EligibilityRuleSummary eligibility_rules = 10;
+  repeated DocumentRequirementSummary document_requirements = 11;
+  repeated FundingComponentSummary funding_components = 12;
+  string last_verified_at_iso = 13;
+}
+
+message EligibilityRuleSummary {
+  string id = 1;
+  string cycle_id = 2;
+  string rule_type = 3;
+  string operator = 4;
+  string structured_value_json = 5;
+  string evidence_source = 6;
+  string review_status = 7;
+}
+
+message DocumentRequirementSummary {
+  string id = 1;
+  string cycle_id = 2;
+  string document_type = 3;
+  string requirement_level = 4;
+  bool attestation_required = 5;
+  bool translation_required = 6;
+  string instructions = 7;
+}
+
+message FundingComponentSummary {
+  string id = 1;
+  string kind = 2;
+  double amount = 3;
+  string currency = 4;
+  string period = 5;
+  string conditions = 6;
+}
+
+message SubmitCandidateRequest {
+  string source_id = 1;
+  string snapshot_id = 2;
+  string extracted_json = 3;
+  string schema_version = 4;
+  string model_id = 5;
+}
+
+message SubmitCandidateResponse {
+  string candidate_id = 1;
+  string review_task_id = 2;
+  string status = 3;
+}
+
+message ApproveCandidateRequest {
+  string review_task_id = 1;
+  string reviewer_id = 2;
+  string notes = 3;
+}
+
+message ApproveCandidateResponse {
+  string scholarship_id = 1;
+  string cycle_id = 2;
+  bool published = 3;
+}
+
+message ExpireCyclesRequest {
+  string reference_timestamp_utc = 1;
+}
+
+message ExpireCyclesResponse {
+  repeated string expired_cycle_ids = 1;
+  int32 count = 2;
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  bool ready = 1;
+}
+
