@@ -1,0 +1,115 @@
+{
+  "title": "Scholarship for international students of TUM",
+  "provider": "TUM",
+  "official_url": "https://stipendienunderlaesse.tum.de/datenabfrage/StipIntWS2627",
+  "target_countries": [
+    "DE"
+  ],
+  "degree_levels": [
+    "BACHELORS",
+    "MASTERS"
+  ],
+  "funding": {
+    "funding_type": "PARTIAL",
+    "monthly_stipend": null,
+    "currency": "EUR",
+    "covers_tuition": null,
+    "covers_travel": null,
+    "covers_health_insurance": null
+  },
+  "cycle": {
+    "cycle_label": "winter semester 2026/27",
+    "open_date": "2026-10-01",
+    "deadline_date": "2026-10-15",
+    "deadline_timezone": null,
+    "deadline_precision": "DATE_ONLY"
+  },
+  "eligibility_rules": [
+    {
+      "rule_type": "NATIONALITY",
+      "operator": "EQUALS",
+      "value": "not eligible for BAf\u00f6G due to their nationality",
+      "evidence_quote": "who are not eligible for BAf\u00f6G due to their nationality (see \u00a78  BAf\u00f6G )"
+    },
+    {
+      "rule_type": "DEGREE_LEVEL",
+      "operator": "IN",
+      "value": "as of 3rd semester in their bachelor's studies enrolled at TUM or as of 2nd semester in their master's studies enrolled at TUM (or as of 1st semester in their master's studies, if the bachelor degree has been completed at TUM)",
+      "evidence_quote": "as of 3rd semester in thei motr bachelor\u2018s studies enrolled at TUM as of 2nd semester in their master\u2019s studies enrolled at TUM (or as of 1st semester in their master\u2019s studies, if the bachelor degree has been completed at TUM)"
+    },
+    {
+      "rule_type": "OTHER",
+      "operator": "EQUALS",
+      "value": "submission of bachelor's thesis or master's thesis not before 30 June (summer term) and 31 December (winter term)",
+      "evidence_quote": "submission of the bachelor's thesis or master's thesis not before 30 June (summer term) and 31 December (winter term)"
+    },
+    {
+      "rule_type": "GPA",
+      "operator": "EQUALS",
+      "value": "good academic records",
+      "evidence_quote": "Merit : good academic records"
+    },
+    {
+      "rule_type": "OTHER",
+      "operator": "EQUALS",
+      "value": "Proven need of the applicant",
+      "evidence_quote": "Proven need of the applicant"
+    }
+  ],
+  "document_requirements": [
+    {
+      "document_type": "LETTER_OF_MOTIVATION",
+      "is_mandatory": true,
+      "attestation_required": false,
+      "instructions": "Please explain your financial status (100\u2013200 words in English or German)"
+    },
+    {
+      "document_type": "ACADEMIC_CV",
+      "is_mandatory": true,
+      "attestation_required": false,
+      "instructions": null
+    },
+    {
+      "document_type": "OTHER",
+      "is_mandatory": true,
+      "attestation_required": false,
+      "instructions": "Residence permit"
+    },
+    {
+      "document_type": "TRANSCRIPT",
+      "is_mandatory": true,
+      "attestation_required": false,
+      "instructions": "TUM grade report (can be downloaded from TUMonline)"
+    },
+    {
+      "document_type": "RECOMMENDATION_LETTER",
+      "is_mandatory": true,
+      "attestation_required": false,
+      "instructions": "two recommendations not older than one semester. Deadline: 15 November / 15 May"
+    },
+    {
+      "document_type": "OTHER",
+      "is_mandatory": true,
+      "attestation_required": true,
+      "instructions": "bank statements of the past 12 months of all bank accounts. If not in German or English language, a certified German translation is required by a sworn translator (with official seal!) (winter term: 01 October \u2013 30 September and summer term: 01 April \u2013 31 March). If there are incoming payments, please explain directly on the bank account statement what kind of payment it is"
+    },
+    {
+      "document_type": "OTHER",
+      "is_mandatory": false,
+      "attestation_required": false,
+      "instructions": "Birth certificates of your own children"
+    },
+    {
+      "document_type": "OTHER",
+      "is_mandatory": false,
+      "attestation_required": true,
+      "instructions": "Proof of parents\u2018 income or proof of income of spouse if applicable (12 months) if not in German or English language, a certified German translation is required by a sworn translator (with official seal!) not older than one year"
+    },
+    {
+      "document_type": "OTHER",
+      "is_mandatory": false,
+      "attestation_required": false,
+      "instructions": "Certificate of residence registration of the spouse, if he/she lives in Germany"
+    }
+  ]
+}

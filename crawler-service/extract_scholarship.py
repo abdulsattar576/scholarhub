@@ -101,8 +101,9 @@ def fetch_webpage_text(url: str) -> str:
 
 def call_gemini(text: str, api_key: str) -> dict:
     """Call Gemini REST API to extract structured JSON."""
-    print("[*] Sending extracted text to Gemini API...")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+    model_id = os.getenv("GEMINI_MODEL_ID", "gemini-3.8-flash")
+    print(f"[*] Sending extracted text to Gemini API ({model_id})...")
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:generateContent?key={api_key}"
     
     prompt = PROMPT_TEMPLATE.replace("{text}", text)
     payload = {
