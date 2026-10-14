@@ -7,6 +7,9 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main",
+    "prisma:push": "prisma db push",
+    "prisma:generate": "prisma generate",
+    "ingest": "ts-node src/ingest_cli.ts",
     "test": "jest"
   },
   "dependencies": {
