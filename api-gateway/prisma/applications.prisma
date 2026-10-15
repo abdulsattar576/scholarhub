@@ -56,3 +56,34 @@ model ApplicationDocument {
   @@map("application_documents")
 }
 
+enum JobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model BackgroundJob {
+  id             String     @id @default(uuid())
+  jobType        String     @map("job_type")
+  ownerUserId    String?    @map("owner_user_id")
+  entityId       String?    @map("entity_id")
+  status         JobStatus  @default(QUEUED)
+  idempotencyKey String?    @unique @map("idempotency_key")
+  attempts       Int        @default(0)
+  maxAttempts    Int        @default(3) @map("max_attempts")
+  progress       Int        @default(0)
+  payload        Json?
+  result         Json?
+  errorMessage   String?    @map("error_message")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+  completedAt    DateTime?  @map("completed_at")
+
+  @@index([status, createdAt])
+  @@index([ownerUserId, status])
+  @@map("background_jobs")
+}
+
+
