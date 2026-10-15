@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 
 interface ScholarshipCycle {
   id: string;
@@ -328,6 +328,11 @@ export default function Home() {
   const [scholarships, setScholarships] = useState<Scholarship[]>(DEFAULT_SCHOLARSHIPS);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFunding, setSelectedFunding] = useState("ALL");
+  const [selectedDegree, setSelectedDegree] = useState<"ALL" | "MASTERS" | "BACHELORS" | "PHD">("ALL");
+  const [selectedCountry, setSelectedCountry] = useState<string>("ALL");
+  const [showClosedCycles, setShowClosedCycles] = useState(false);
+  const [sortBy, setSortBy] = useState<"UPCOMING_DEADLINE" | "RECENTLY_VERIFIED" | "TITLE">("UPCOMING_DEADLINE");
+  const [nowTime, setNowTime] = useState<number>(0);
   const [activeModal, setActiveModal] = useState<"NONE" | "ELIGIBILITY" | "DOCS" | "AUTH" | "PROFILE" | "APPLICATIONS" | "STUDIO" | "ADMIN" | "READINESS">("NONE");
   const [selectedScholarship, setSelectedScholarship] = useState<Scholarship>(DEFAULT_SCHOLARSHIP);
 
@@ -500,6 +505,8 @@ export default function Home() {
 
   // Check Current Session, Load Applications & Load Scholarships
   useEffect(() => {
+    setNowTime(Date.now());
+
     async function initData() {
       loadReadinessGuides();
 
@@ -1052,12 +1059,123 @@ export default function Home() {
     }
   };
 
-  const filteredScholarships = scholarships.filter((item) => {
-    const matchesQuery =
-      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.providerName.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesQuery;
-  });
+  const countryLabels: Record<string, string> = {
+    DE: "Germany (DE)",
+    FR: "France (FR)",
+    IT: "Italy (IT)",
+    ES: "Spain (ES)",
+    SE: "Sweden (SE)",
+    NL: "Netherlands (NL)",
+    UK: "United Kingdom (UK)",
+    US: "United States (US)",
+    CA: "Canada (CA)",
+    AT: "Austria (AT)",
+    CH: "Switzerland (CH)",
+    BE: "Belgium (BE)",
+    FI: "Finland (FI)",
+    NO: "Norway (NO)",
+    TR: "Turkey (TR)",
+    CN: "China (CN)",
+    KR: "South Korea (KR)",
+    JP: "Japan (JP)",
+    AU: "Australia (AU)",
+  };
+
+  const uniqueCountries = useMemo(() => {
+    const set = new Set<string>();
+    scholarships.forEach((s) => {
+      s.targetCountryCodes?.forEach((c) => set.add(c));
+    });
+    return Array.from(set).sort();
+  }, [scholarships]);
+
+  const hasActiveFilters =
+    searchQuery.trim() !== "" ||
+    selectedDegree !== "ALL" ||
+    selectedFunding !== "ALL" ||
+    selectedCountry !== "ALL" ||
+    showClosedCycles ||
+    sortBy !== "UPCOMING_DEADLINE";
+
+  const handleResetFilters = () => {
+    setSearchQuery("");
+    setSelectedDegree("ALL");
+    setSelectedFunding("ALL");
+    setSelectedCountry("ALL");
+    setShowClosedCycles(false);
+    setSortBy("UPCOMING_DEADLINE");
+  };
+
+  const filteredScholarships = useMemo(() => {
+    return scholarships
+      .filter((item) => {
+        // 1. Search Query
+        const q = searchQuery.trim().toLowerCase();
+        if (q) {
+          const titleMatch = item.title.toLowerCase().includes(q);
+          const providerMatch = item.providerName.toLowerCase().includes(q);
+          const countryMatch = item.targetCountryCodes?.some((c) =>
+            c.toLowerCase().includes(q) || (countryLabels[c] || "").toLowerCase().includes(q)
+          );
+          if (!titleMatch && !providerMatch && !countryMatch) {
+            return false;
+          }
+        }
+
+        // 2. Degree Filter
+        if (selectedDegree !== "ALL") {
+          const targetLevel = selectedDegree === "BACHELORS" ? 1 : selectedDegree === "MASTERS" ? 2 : 3;
+          if (!item.degreeLevels?.includes(targetLevel)) {
+            return false;
+          }
+        }
+
+        // 3. Funding Filter
+        if (selectedFunding === "FULL" && item.fundingType !== 1) {
+          return false;
+        }
+        if (selectedFunding === "PARTIAL" && item.fundingType === 1) {
+          return false;
+        }
+
+        // 4. Country Filter
+        if (selectedCountry !== "ALL") {
+          if (!item.targetCountryCodes?.includes(selectedCountry)) {
+            return false;
+          }
+        }
+
+        // 5. Active Cycles Toggle
+        if (!showClosedCycles && nowTime > 0 && item.activeCycle?.deadlineAtIso) {
+          const isClosed = new Date(item.activeCycle.deadlineAtIso).getTime() < nowTime;
+          if (isClosed) {
+            return false;
+          }
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortBy === "TITLE") {
+          return a.title.localeCompare(b.title);
+        }
+        if (sortBy === "UPCOMING_DEADLINE") {
+          const timeA = a.activeCycle?.deadlineAtIso ? new Date(a.activeCycle.deadlineAtIso).getTime() : Infinity;
+          const timeB = b.activeCycle?.deadlineAtIso ? new Date(b.activeCycle.deadlineAtIso).getTime() : Infinity;
+          const isPastA = nowTime > 0 && timeA < nowTime;
+          const isPastB = nowTime > 0 && timeB < nowTime;
+          if (!isPastA && isPastB) return -1;
+          if (isPastA && !isPastB) return 1;
+          return timeA - timeB;
+        }
+        if (sortBy === "RECENTLY_VERIFIED") {
+          const timeA = a.lastVerifiedAtIso ? new Date(a.lastVerifiedAtIso).getTime() : 0;
+          const timeB = b.lastVerifiedAtIso ? new Date(b.lastVerifiedAtIso).getTime() : 0;
+          return timeB - timeA;
+        }
+        return 0;
+      });
+  }, [scholarships, searchQuery, selectedDegree, selectedFunding, selectedCountry, showClosedCycles, sortBy, nowTime]);
 
   const activeGuide =
     readinessGuides.find((g) => g.id === readinessTab) || {
@@ -1324,92 +1442,228 @@ export default function Home() {
 
       {/* Scholarships Listing */}
       <main className="max-w-6xl mx-auto px-4 py-8 flex-1 w-full">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-slate-900">Available Scholarships ({filteredScholarships.length})</h2>
-          <div className="flex gap-2 text-xs">
-            {["ALL", "FULL", "PARTIAL"].map((type) => (
-              <button
-                key={type}
-                onClick={() => setSelectedFunding(type)}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                  selectedFunding === type
-                    ? "bg-slate-900 text-white"
-                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-                }`}
+        {/* Filter & Discovery Toolbar */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 mb-8 shadow-sm space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+            <div>
+              <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                <span>Verified Scholarships</span>
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                  {filteredScholarships.length} of {scholarships.length} Available
+                </span>
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                Filter by degree program, funding coverage, destination country, or cycle deadline.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Closed Cycles Toggle */}
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-600 hover:text-slate-900 select-none bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5">
+                <input
+                  type="checkbox"
+                  checked={showClosedCycles}
+                  onChange={(e) => setShowClosedCycles(e.target.checked)}
+                  className="rounded text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+                />
+                <span>Include Closed Cycles</span>
+              </label>
+
+              {/* Reset Filters */}
+              {hasActiveFilters && (
+                <button
+                  onClick={handleResetFilters}
+                  className="text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-200 rounded-lg px-3 py-1.5 transition-colors flex items-center gap-1"
+                >
+                  ✕ Reset Filters
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Facet Filters Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+            {/* Degree Level Filter */}
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1.5">Degree Level</label>
+              <div className="grid grid-cols-4 gap-1">
+                {(["ALL", "BACHELORS", "MASTERS", "PHD"] as const).map((deg) => (
+                  <button
+                    key={deg}
+                    onClick={() => setSelectedDegree(deg)}
+                    className={`py-1.5 px-2 text-center rounded-lg font-medium transition-colors ${
+                      selectedDegree === deg
+                        ? "bg-slate-900 text-white shadow-xs"
+                        : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    {deg === "ALL" ? "All" : deg === "BACHELORS" ? "BSc" : deg === "MASTERS" ? "MSc" : "PhD"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Funding Coverage Filter */}
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1.5">Funding Type</label>
+              <div className="grid grid-cols-3 gap-1">
+                {(["ALL", "FULL", "PARTIAL"] as const).map((fund) => (
+                  <button
+                    key={fund}
+                    onClick={() => setSelectedFunding(fund)}
+                    className={`py-1.5 px-2 text-center rounded-lg font-medium transition-colors ${
+                      selectedFunding === fund
+                        ? "bg-blue-600 text-white shadow-xs"
+                        : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    {fund === "ALL" ? "All" : fund === "FULL" ? "Fully Funded" : "Partial"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Country Destination Filter */}
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1.5">Country Destination</label>
+              <select
+                value={selectedCountry}
+                onChange={(e) => setSelectedCountry(e.target.value)}
+                className="w-full py-1.5 px-2.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 font-medium outline-none focus:border-blue-500 focus:bg-white transition-colors"
               >
-                {type === "ALL" ? "All Funding" : type}
-              </button>
-            ))}
+                <option value="ALL">All Destination Countries</option>
+                {uniqueCountries.map((c) => (
+                  <option key={c} value={c}>
+                    {countryLabels[c] || c}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Sort Order */}
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1.5">Sort Results By</label>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="w-full py-1.5 px-2.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 font-medium outline-none focus:border-blue-500 focus:bg-white transition-colors"
+              >
+                <option value="UPCOMING_DEADLINE">Upcoming Deadline</option>
+                <option value="RECENTLY_VERIFIED">Recently Verified</option>
+                <option value="TITLE">Scholarship Name (A–Z)</option>
+              </select>
+            </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredScholarships.map((sch) => {
-            const isTracked = applications.some((a) => a.scholarshipId === sch.id);
-            return (
-              <div
-                key={sch.id}
-                className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col justify-between shadow-sm hover:shadow-md transition-shadow"
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200/60 uppercase">
-                      {sch.fundingType === 1 ? "Fully Funded" : sch.fundingType === 2 ? "Partial (500–1,800 €)" : "Stipend"}
-                    </span>
-                    <span className="text-xs text-slate-400 font-mono">
-                      {sch.targetCountryCodes?.join(", ") || "DE"}
-                    </span>
-                  </div>
-
-                  <h3 className="text-base font-bold text-slate-900 mt-2.5 line-clamp-2">
-                    {sch.title}
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-1 font-medium">{sch.providerName}</p>
-
-                  {sch.activeCycle && (
-                    <div className="mt-4 p-2.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
-                      <span className="text-slate-500 font-medium">Next Deadline:</span>
-                      <span className="font-bold text-red-600">
-                        {sch.activeCycle.deadlineLocalDate || "2026-10-15"}
+        {/* Scholarships Grid or Empty State */}
+        {filteredScholarships.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-sm">
+            <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
+              🔍
+            </div>
+            <h3 className="text-base font-bold text-slate-900 mb-1">No scholarships match your criteria</h3>
+            <p className="text-xs text-slate-500 max-w-md mx-auto mb-5">
+              We couldn&apos;t find any opportunities matching your active combination of degree level, funding coverage, or search query.
+            </p>
+            <button
+              onClick={handleResetFilters}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition-colors shadow-sm"
+            >
+              Reset All Filters
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredScholarships.map((sch) => {
+              const isTracked = applications.some((a) => a.scholarshipId === sch.id);
+              return (
+                <div
+                  key={sch.id}
+                  className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col justify-between shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200/60 uppercase">
+                        {sch.fundingType === 1 ? "Fully Funded" : sch.fundingType === 2 ? "Partial (500–1,800 €)" : "Stipend"}
+                      </span>
+                      <span className="text-xs text-slate-400 font-mono">
+                        {sch.targetCountryCodes?.join(", ") || "DE"}
                       </span>
                     </div>
-                  )}
-                </div>
 
-                <div className="mt-6 pt-4 border-t border-slate-100 flex flex-wrap items-center gap-2">
-                  <button
-                    onClick={() => handleOpenEligibility(sch)}
-                    className="flex-1 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-colors shadow-sm"
-                  >
-                    Eligibility
-                  </button>
-                  <button
-                    onClick={() => handleOpenStudio(sch)}
-                    className="px-3 py-2 rounded-xl border border-purple-200 bg-purple-50/70 hover:bg-purple-100 text-purple-700 text-xs font-semibold transition-colors flex items-center gap-1"
-                  >
-                    ✨ AI Studio
-                  </button>
-                  <button
-                    onClick={() => handleTrackScholarship(sch)}
-                    className={`px-3 py-2 rounded-xl border text-xs font-semibold transition-colors flex items-center gap-1 ${
-                      isTracked
-                        ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                        : "border-blue-200 bg-blue-50/60 hover:bg-blue-100 text-blue-700"
-                    }`}
-                  >
-                    {isTracked ? "✓ Tracked" : "+ Track"}
-                  </button>
-                  <button
-                    onClick={() => handleOpenDocs(sch)}
-                    className="px-2.5 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors"
-                  >
-                    Docs
-                  </button>
+                    <h3 className="text-base font-bold text-slate-900 mt-2.5 line-clamp-2">
+                      {sch.title}
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1 font-medium">{sch.providerName}</p>
+
+                    {sch.activeCycle && (() => {
+                      const isClosed = sch.activeCycle.deadlineAtIso && nowTime > 0
+                        ? new Date(sch.activeCycle.deadlineAtIso).getTime() < nowTime
+                        : false;
+                      return (
+                        <div
+                          className={`mt-4 p-2.5 rounded-xl border flex items-center justify-between text-xs ${
+                            isClosed
+                              ? "bg-slate-50 border-slate-200 text-slate-500"
+                              : "bg-red-50/60 border-red-100 text-slate-700"
+                          }`}
+                        >
+                          <span className="font-medium flex items-center gap-1.5">
+                            <span
+                              className={`inline-block w-2 h-2 rounded-full ${
+                                isClosed ? "bg-slate-400" : "bg-emerald-500 animate-pulse"
+                              }`}
+                            />
+                            {isClosed ? "Cycle Closed:" : "Application Deadline:"}
+                          </span>
+                          <span
+                            className={`font-bold ${
+                              isClosed ? "text-slate-500 line-through" : "text-red-600 font-mono"
+                            }`}
+                          >
+                            {sch.activeCycle.deadlineLocalDate || "2026-10-15"}
+                          </span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t border-slate-100 flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => handleOpenEligibility(sch)}
+                      className="flex-1 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-colors shadow-sm"
+                    >
+                      Eligibility
+                    </button>
+                    <button
+                      onClick={() => handleOpenStudio(sch)}
+                      className="px-3 py-2 rounded-xl border border-purple-200 bg-purple-50/70 hover:bg-purple-100 text-purple-700 text-xs font-semibold transition-colors flex items-center gap-1"
+                    >
+                      ✨ AI Studio
+                    </button>
+                    <button
+                      onClick={() => handleTrackScholarship(sch)}
+                      className={`px-3 py-2 rounded-xl border text-xs font-semibold transition-colors flex items-center gap-1 ${
+                        isTracked
+                          ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                          : "border-blue-200 bg-blue-50/60 hover:bg-blue-100 text-blue-700"
+                      }`}
+                    >
+                      {isTracked ? "✓ Tracked" : "+ Track"}
+                    </button>
+                    <button
+                      onClick={() => handleOpenDocs(sch)}
+                      className="px-2.5 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors"
+                    >
+                      Docs
+                    </button>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </main>
 
       {/* MODAL: Pakistan Credential & Attestation Guide */}
