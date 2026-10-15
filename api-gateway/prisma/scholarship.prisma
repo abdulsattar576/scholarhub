@@ -1,0 +1,121 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("SCHOLARSHIP_DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/@prisma/scholarship-client"
+}
+
+enum OpportunityStatus {
+  DRAFT
+  PUBLISHED
+  INACTIVE
+  RETIRED
+}
+
+enum CycleStatus {
+  DISCOVERED
+  PENDING_REVIEW
+  UPCOMING
+  OPEN
+  CLOSED
+  ARCHIVED
+  CANCELLED
+  UNKNOWN
+}
+
+enum FundingType {
+  FULL
+  PARTIAL
+  TUITION_ONLY
+  STIPEND_ONLY
+  OTHER
+}
+
+enum RequirementLevel {
+  MANDATORY
+  OPTIONAL
+  CONDITIONAL
+}
+
+model ScholarshipProvider {
+  id             String        @id @default(uuid())
+  name           String
+  type           String?
+  officialDomain String?       @map("official_domain")
+  scholarships   Scholarship[]
+
+  @@map("scholarship_providers")
+}
+
+model Scholarship {
+  id                String            @id @default(uuid())
+  providerId        String?           @map("provider_id")
+  title             String
+  description       String?
+  officialUrl       String            @map("official_url")
+  fundingType       FundingType       @default(FULL) @map("funding_type")
+  opportunityStatus OpportunityStatus @default(DRAFT) @map("opportunity_status")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  provider          ScholarshipProvider? @relation(fields: [providerId], references: [id])
+  cycles            ScholarshipCycle[]
+
+  @@map("scholarships")
+}
+
+model ScholarshipCycle {
+  id                String      @id @default(uuid())
+  scholarshipId     String      @map("scholarship_id")
+  cycleLabel        String      @map("cycle_label")
+  status            CycleStatus @default(DISCOVERED)
+  openAt            DateTime?   @map("open_at")
+  deadlineAt        DateTime?   @map("deadline_at")
+  deadlineLocalDate String?     @map("deadline_local_date")
+  deadlineTimezone  String?     @map("deadline_timezone")
+  deadlinePrecision String      @default("DATETIME") @map("deadline_precision")
+  verifiedAt        DateTime?   @map("verified_at")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+
+  scholarship          Scholarship           @relation(fields: [scholarshipId], references: [id], onDelete: Restrict)
+  eligibilityRules     EligibilityRule[]
+  documentRequirements DocumentRequirement[]
+
+  @@map("scholarship_cycles")
+}
+
+model EligibilityRule {
+  id              String  @id @default(uuid())
+  cycleId         String  @map("cycle_id")
+  programId       String? @map("program_id")
+  ruleType        String  @map("rule_type")
+  operator        String
+  structuredValue Json    @map("structured_value")
+  evidenceId      String? @map("evidence_id")
+  reviewStatus    String  @default("PENDING") @map("review_status")
+
+  cycle ScholarshipCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+
+  @@map("eligibility_rules")
+}
+
+model DocumentRequirement {
+  id                 String           @id @default(uuid())
+  cycleId            String           @map("cycle_id")
+  programId          String?          @map("program_id")
+  documentType       String           @map("document_type")
+  requirementLevel   RequirementLevel @default(MANDATORY) @map("requirement_level")
+  attestationStatus  String?          @map("attestation_status")
+  translationStatus  String?          @map("translation_status")
+  applicationStage   String?          @map("application_stage")
+  instructions       String?
+  evidenceId         String?          @map("evidence_id")
+
+  cycle ScholarshipCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+
+  @@map("document_requirements")
+}
