@@ -1,0 +1,57 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("APPLICATION_DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/@prisma/application-client"
+}
+
+enum ApplicationState {
+  PLANNING
+  PREPARING
+  READY
+  SUBMITTED
+  UNDER_REVIEW
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+model Application {
+  id              String            @id @default(uuid())
+  userId          String            @map("user_id")
+  scholarshipId   String            @map("scholarship_id")
+  scholarshipTitle String           @map("scholarship_title")
+  providerName    String            @map("provider_name")
+  cycleLabel      String?           @map("cycle_label")
+  targetDeadline  DateTime?         @map("target_deadline")
+  status          ApplicationState  @default(PLANNING)
+  notes           String?
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  documents       ApplicationDocument[]
+
+  @@unique([userId, scholarshipId])
+  @@map("applications")
+}
+
+model ApplicationDocument {
+  id                  String      @id @default(uuid())
+  applicationId       String      @map("application_id")
+  documentType        String      @map("document_type")
+  requirementLevel    String      @default("MANDATORY") @map("requirement_level")
+  isPrepared          Boolean     @default(false) @map("is_prepared")
+  attestationDone     Boolean     @default(false) @map("attestation_done")
+  translationDone     Boolean     @default(false) @map("translation_done")
+  instructions        String?
+  notes               String?
+  createdAt           DateTime    @default(now()) @map("created_at")
+  updatedAt           DateTime    @updatedAt @map("updated_at")
+
+  application         Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@map("application_documents")
+}
