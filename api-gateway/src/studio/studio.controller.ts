@@ -60,5 +60,20 @@ export class StudioController {
       projectsSummary: body.projectsSummary,
     });
   }
+
+  @Post('export/cv')
+  exportCv(
+    @Body() body: { cvData: any; format?: 'markdown' | 'html' },
+  ) {
+    return this.studioService.exportAcademicCv(body.cvData, body.format || 'markdown');
+  }
+
+  @Post('export/motivation-letter')
+  exportMotivationLetter(
+    @Body() body: { letterData: any; format?: 'markdown' | 'html' },
+  ) {
+    return this.studioService.exportMotivationLetter(body.letterData, body.format || 'markdown');
+  }
 }
+
 

@@ -343,6 +343,11 @@ export default function Home() {
   const [adminScholarships, setAdminScholarships] = useState<any[]>([]);
   const [selectedAdminSch, setSelectedAdminSch] = useState<any | null>(null);
   const [adminLoading, setAdminLoading] = useState(false);
+  const [lifecycleReport, setLifecycleReport] = useState<any | null>(null);
+  const [lifecycleRunning, setLifecycleRunning] = useState(false);
+
+  // Document Export State
+  const [exportingDoc, setExportingDoc] = useState(false);
 
   // Readiness Guide State
   const [readinessTab, setReadinessTab] = useState<string>("hec");
@@ -704,6 +709,44 @@ export default function Home() {
     setTimeout(() => setCopiedNotice(false), 2500);
   };
 
+  const handleExportDocument = async (
+    docType: "cv" | "motivation-letter",
+    format: "markdown" | "html"
+  ) => {
+    setExportingDoc(true);
+    try {
+      const endpoint = docType === "cv" ? "/v1/studio/export/cv" : "/v1/studio/export/motivation-letter";
+      const payload = docType === "cv" ? { cvData: studioCvResult, format } : { letterData: studioLetterResult, format };
+
+      const res = await fetch(`${apiUrl}${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to export document");
+      }
+
+      const data = await res.json();
+      const mimeType = format === "markdown" ? "text/markdown;charset=utf-8" : "text/html;charset=utf-8";
+      const blob = new Blob([data.content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = data.filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Export error", err);
+    } finally {
+      setExportingDoc(false);
+    }
+  };
+
   // Admin Actions
   const handleOpenAdmin = () => {
     if (!currentUser) {
@@ -713,6 +756,26 @@ export default function Home() {
     }
     setActiveModal("ADMIN");
     loadAdminData();
+  };
+
+  const handleReconcileLifecycle = async () => {
+    setLifecycleRunning(true);
+    try {
+      const res = await fetch(`${apiUrl}/v1/admin/lifecycle/reconcile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLifecycleReport(data);
+        await loadAdminData();
+      }
+    } catch (err) {
+      console.error("Lifecycle reconciliation failed", err);
+    } finally {
+      setLifecycleRunning(false);
+    }
   };
 
   const handleToggleScholarshipPublish = async (schId: string, currentStatus: string) => {
@@ -1321,9 +1384,65 @@ export default function Home() {
               </div>
             )}
 
+            {/* Lifecycle & Deadline Monitor Card */}
+            <div className="mt-4 p-4 rounded-xl border border-slate-200 bg-slate-50/80">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h4 className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+                    <span>⏱️</span> Scholarship Lifecycle &amp; Deadline Engine
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Auto-reconciles open vs expired scholarship cycles. Past deadlines move to CLOSED while preserving student history.
+                  </p>
+                </div>
+                <button
+                  onClick={handleReconcileLifecycle}
+                  disabled={lifecycleRunning}
+                  className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs shadow-sm transition-colors flex items-center justify-center gap-1.5 shrink-0"
+                >
+                  {lifecycleRunning ? "Running Audit..." : "⚡ Run Lifecycle Audit"}
+                </button>
+              </div>
+
+              {lifecycleReport && (
+                <div className="mt-3 pt-3 border-t border-slate-200/80 text-xs space-y-2">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[11px]">
+                      {lifecycleReport.totalCyclesEvaluated} Cycles Evaluated
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-800 font-bold text-[11px]">
+                      {lifecycleReport.closedCount} Auto-Closed (Past Deadline)
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-bold text-[11px]">
+                      {lifecycleReport.openedCount} Transitioned to Open
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 italic">{lifecycleReport.summary}</p>
+
+                  {lifecycleReport.approachingDeadlines && lifecycleReport.approachingDeadlines.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      <span className="font-bold text-[11px] text-amber-900 block">
+                        🚨 Approaching Deadlines (&lt;= 14 Days):
+                      </span>
+                      {lifecycleReport.approachingDeadlines.map((ad: any, i: number) => (
+                        <div key={i} className="p-2 rounded-lg bg-amber-50 border border-amber-200 text-[11px] flex items-center justify-between">
+                          <span className="font-medium text-amber-950">
+                            {ad.scholarshipTitle} ({ad.cycleLabel})
+                          </span>
+                          <span className="font-bold text-amber-800">
+                            {ad.daysRemaining} days left • {ad.affectedStudentApplications} tracked student(s)
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Scholarships Management & Side-by-Side Review */}
             <div className="mt-6">
-              <h4 className="font-bold text-sm text-slate-800 mb-3">Moderation Queue & Evidence Inspector</h4>
+              <h4 className="font-bold text-sm text-slate-800 mb-3">Moderation Queue &amp; Evidence Inspector</h4>
 
               {adminLoading ? (
                 <div className="py-8 text-center text-xs text-slate-400">Loading admin data...</div>
@@ -1568,16 +1687,34 @@ export default function Home() {
                       </div>
                     )}
 
-                    <div className="pt-2 flex items-center justify-between border-t border-slate-100">
+                    <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100">
                       <span className="text-[11px] text-slate-400">
                         Zero fabrication policy: Edit to reflect personal voice.
                       </span>
-                      <button
-                        onClick={() => handleCopyText(studioLetterResult.letterContent)}
-                        className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-1.5"
-                      >
-                        {copiedNotice ? "✓ Copied to Clipboard" : "📋 Copy Letter"}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleExportDocument("motivation-letter", "markdown")}
+                          disabled={exportingDoc}
+                          className="px-2.5 py-1.5 rounded-lg border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-semibold flex items-center gap-1 transition-colors"
+                          title="Download Markdown (.md)"
+                        >
+                          📥 Download .md
+                        </button>
+                        <button
+                          onClick={() => handleExportDocument("motivation-letter", "html")}
+                          disabled={exportingDoc}
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold flex items-center gap-1 transition-colors"
+                          title="Download Print-Ready Letterhead HTML / PDF"
+                        >
+                          📄 Printable HTML / PDF
+                        </button>
+                        <button
+                          onClick={() => handleCopyText(studioLetterResult.letterContent)}
+                          className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                        >
+                          {copiedNotice ? "✓ Copied" : "📋 Copy"}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1658,17 +1795,38 @@ export default function Home() {
                       </div>
                     )}
 
-                    <div className="pt-2 flex items-center justify-end border-t border-slate-100">
-                      <button
-                        onClick={() =>
-                          handleCopyText(
-                            `${studioCvResult.personalInfo?.fullName}\n${studioCvResult.personalInfo?.targetHeadline}\n\nSummary:\n${studioCvResult.academicSummary}`
-                          )
-                        }
-                        className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold"
-                      >
-                        {copiedNotice ? "✓ Copied" : "📋 Copy CV Summary"}
-                      </button>
+                    <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100">
+                      <span className="text-[11px] text-slate-400">
+                        European Europass / DAAD standard layout.
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleExportDocument("cv", "markdown")}
+                          disabled={exportingDoc}
+                          className="px-2.5 py-1.5 rounded-lg border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-semibold flex items-center gap-1 transition-colors"
+                          title="Download CV Markdown (.md)"
+                        >
+                          📥 Download .md
+                        </button>
+                        <button
+                          onClick={() => handleExportDocument("cv", "html")}
+                          disabled={exportingDoc}
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold flex items-center gap-1 transition-colors"
+                          title="Download Print-Ready European CV HTML / PDF"
+                        >
+                          📄 Printable HTML / PDF
+                        </button>
+                        <button
+                          onClick={() =>
+                            handleCopyText(
+                              `${studioCvResult.personalInfo?.fullName}\n${studioCvResult.personalInfo?.targetHeadline}\n\nSummary:\n${studioCvResult.academicSummary}`
+                            )
+                          }
+                          className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-colors"
+                        >
+                          {copiedNotice ? "✓ Copied" : "📋 Copy"}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
