@@ -10,3 +10,4 @@ import { AuthModule } from '../auth/auth.module';
   exports: [ApplicationsService],
 })
 export class ApplicationsModule {}
+
