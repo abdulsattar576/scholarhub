@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaClient as ApplicationPrismaClient, ApplicationState } from '@prisma/application-client';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class ApplicationsService {
@@ -171,5 +173,146 @@ export class ApplicationsService {
 
     return { message: 'Application removed from tracker' };
   }
+
+  async uploadDocumentFile(
+    userId: string,
+    applicationId: string,
+    documentId: string,
+    file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    const app = await this.prisma.application.findFirst({
+      where: { id: applicationId, userId },
+    });
+
+    if (!app) {
+      throw new NotFoundException('Application not found');
+    }
+
+    const doc = await this.prisma.applicationDocument.findFirst({
+      where: { id: documentId, applicationId },
+    });
+
+    if (!doc) {
+      throw new NotFoundException('Document requirement not found');
+    }
+
+    // Size limit: 10MB
+    const maxSizeBytes = 10 * 1024 * 1024;
+    if (file.size > maxSizeBytes) {
+      throw new BadRequestException('File size exceeds the 10MB limit');
+    }
+
+    // MIME type check
+    const allowedMimeTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      throw new BadRequestException('Only PDF, PNG, and JPEG formats are permitted');
+    }
+
+    // Create private storage directory
+    const uploadDir = path.join(process.cwd(), 'uploads', 'documents', userId, applicationId);
+    await fs.promises.mkdir(uploadDir, { recursive: true });
+
+    // Clean filename
+    const safeName = `${documentId}_${Date.now()}_${path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]/g, '')}`;
+    const storageKey = path.join(uploadDir, safeName);
+
+    // Write file to disk
+    await fs.promises.writeFile(storageKey, file.buffer);
+
+    // If an older file existed, remove it
+    if (doc.storageKey && fs.existsSync(doc.storageKey) && doc.storageKey !== storageKey) {
+      try {
+        await fs.promises.unlink(doc.storageKey);
+      } catch {
+        // Ignored
+      }
+    }
+
+    // Update document record
+    const updated = await this.prisma.applicationDocument.update({
+      where: { id: documentId },
+      data: {
+        fileName: file.originalname,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+        storageKey,
+        uploadedAt: new Date(),
+        isPrepared: true, // Auto-mark prepared on file attachment
+      },
+    });
+
+    this.logger.log(`User ${userId} uploaded ${file.originalname} for ${doc.documentType}`);
+    return updated;
+  }
+
+  async getDocumentFile(userId: string, applicationId: string, documentId: string) {
+    const app = await this.prisma.application.findFirst({
+      where: { id: applicationId, userId },
+    });
+
+    if (!app) {
+      throw new NotFoundException('Application not found');
+    }
+
+    const doc = await this.prisma.applicationDocument.findFirst({
+      where: { id: documentId, applicationId },
+    });
+
+    if (!doc || !doc.storageKey) {
+      throw new NotFoundException('No file attached to this document requirement');
+    }
+
+    if (!fs.existsSync(doc.storageKey)) {
+      throw new NotFoundException('Stored document file not found on disk');
+    }
+
+    return {
+      filePath: doc.storageKey,
+      fileName: doc.fileName || 'document.pdf',
+      mimeType: doc.mimeType || 'application/pdf',
+    };
+  }
+
+  async deleteDocumentFile(userId: string, applicationId: string, documentId: string) {
+    const app = await this.prisma.application.findFirst({
+      where: { id: applicationId, userId },
+    });
+
+    if (!app) {
+      throw new NotFoundException('Application not found');
+    }
+
+    const doc = await this.prisma.applicationDocument.findFirst({
+      where: { id: documentId, applicationId },
+    });
+
+    if (!doc) {
+      throw new NotFoundException('Document requirement not found');
+    }
+
+    if (doc.storageKey && fs.existsSync(doc.storageKey)) {
+      try {
+        await fs.promises.unlink(doc.storageKey);
+      } catch {
+        // Ignored
+      }
+    }
+
+    return await this.prisma.applicationDocument.update({
+      where: { id: documentId },
+      data: {
+        fileName: null,
+        fileSize: null,
+        mimeType: null,
+        storageKey: null,
+        uploadedAt: null,
+      },
+    });
+  }
 }
+
 
