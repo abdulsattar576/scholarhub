@@ -5,6 +5,7 @@ import { Observable, firstValueFrom } from 'rxjs';
 interface ScholarshipServiceClient {
   searchScholarships(data: any): Observable<any>;
   getScholarship(data: { id: string; cycleId?: string }): Observable<any>;
+  evaluateEligibility(data: any): Observable<any>;
 }
 
 @Injectable()
@@ -39,5 +40,13 @@ export class ScholarshipsService implements OnModuleInit {
 
   async findOne(id: string) {
     return await firstValueFrom(this.scholarshipService.getScholarship({ id }));
+  }
+
+  async evaluateEligibility(payload: {
+    scholarshipId: string;
+    cycleId?: string;
+    studentProfile: any;
+  }) {
+    return await firstValueFrom(this.scholarshipService.evaluateEligibility(payload));
   }
 }
