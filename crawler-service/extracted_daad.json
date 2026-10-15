@@ -1,0 +1,90 @@
+{
+  "title": "DAAD Helmut-Schmidt-Programme (Master's Scholarships for Public Policy and Good Governance)",
+  "provider": "German Academic Exchange Service (DAAD)",
+  "official_url": "https://www.daad.de/en/find-funding/scholarship-database/?status=3&origin=14&subjectGrps=&daad=1&q=&page=1&detail=50026200",
+  "target_countries": [
+    "DE"
+  ],
+  "degree_levels": [
+    "MASTERS"
+  ],
+  "funding": {
+    "funding_type": "FULL",
+    "monthly_stipend": 934,
+    "currency": "EUR",
+    "covers_tuition": true,
+    "covers_travel": true,
+    "covers_health_insurance": true
+  },
+  "cycle": {
+    "cycle_label": "Academic Year 2026/27",
+    "open_date": "2026-06-01",
+    "deadline_date": "2026-07-31",
+    "deadline_timezone": "Europe/Berlin",
+    "deadline_precision": "DATE_ONLY"
+  },
+  "eligibility_rules": [
+    {
+      "rule_type": "NATIONALITY",
+      "operator": "IN",
+      "value": "PK",
+      "evidence_quote": "Graduates from developing and emerging countries (see DAC list of ODA recipients) with a first university degree."
+    },
+    {
+      "rule_type": "DEGREE_LEVEL",
+      "operator": "EQUALS",
+      "value": "BACHELORS",
+      "evidence_quote": "Applicants must hold a first university degree (Bachelor or equivalent) obtained no more than six years before application."
+    },
+    {
+      "rule_type": "GPA",
+      "operator": "GTE",
+      "value": 3.0,
+      "evidence_quote": "Above-average academic performance in the first university degree (at least equivalent to German grade 2.5 or higher)."
+    },
+    {
+      "rule_type": "LANGUAGE",
+      "operator": "GTE",
+      "value": 6.5,
+      "evidence_quote": "Very good English language skills (minimum IELTS 6.5 or TOEFL iBT 80) or German language skills depending on program."
+    }
+  ],
+  "document_requirements": [
+    {
+      "document_type": "ACADEMIC_CV",
+      "is_mandatory": true,
+      "attestation_required": false,
+      "instructions": "DAAD application form and a current Europass academic CV (maximum 2 pages)."
+    },
+    {
+      "document_type": "LETTER_OF_MOTIVATION",
+      "is_mandatory": true,
+      "attestation_required": false,
+      "instructions": "Detailed letter of motivation (max 2 pages) containing precise academic and personal reasons for wanting to study in Germany."
+    },
+    {
+      "document_type": "TRANSCRIPT",
+      "is_mandatory": true,
+      "attestation_required": true,
+      "instructions": "Official transcript of records from completed Bachelor's degree including grading scale and certified English or German translation."
+    },
+    {
+      "document_type": "DEGREE_CERTIFICATE",
+      "is_mandatory": true,
+      "attestation_required": true,
+      "instructions": "Certified copy of university degree certificate with official HEC attestation and translation."
+    },
+    {
+      "document_type": "RECOMMENDATION_LETTER",
+      "is_mandatory": true,
+      "attestation_required": false,
+      "instructions": "One current letter of recommendation from a university lecturer or current employer with official letterhead and stamp."
+    },
+    {
+      "document_type": "LANGUAGE_CERTIFICATE",
+      "is_mandatory": true,
+      "attestation_required": false,
+      "instructions": "Official IELTS (Academic) or TOEFL score report taken within the last two years."
+    }
+  ]
+}
