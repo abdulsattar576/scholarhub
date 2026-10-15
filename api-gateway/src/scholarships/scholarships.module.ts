@@ -23,3 +23,4 @@ import { ScholarshipsService } from './scholarships.service';
   exports: [ScholarshipsService],
 })
 export class ScholarshipsModule {}
+

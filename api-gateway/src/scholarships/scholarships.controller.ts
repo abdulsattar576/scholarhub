@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
 import { ScholarshipsService } from './scholarships.service';
 
 @Controller('v1/scholarships')
@@ -28,4 +28,17 @@ export class ScholarshipsController {
   async findOne(@Param('id') id: string) {
     return this.scholarshipsService.findOne(id);
   }
+
+  @Post(':id/evaluate')
+  async evaluate(
+    @Param('id') id: string,
+    @Body() body: { cycleId?: string; studentProfile: any },
+  ) {
+    return this.scholarshipsService.evaluateEligibility({
+      scholarshipId: id,
+      cycleId: body?.cycleId,
+      studentProfile: body?.studentProfile || {},
+    });
+  }
 }
+

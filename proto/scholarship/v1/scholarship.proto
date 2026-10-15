@@ -8,6 +8,7 @@ service ScholarshipService {
   rpc SubmitCandidate(SubmitCandidateRequest) returns (SubmitCandidateResponse);
   rpc ApproveCandidate(ApproveCandidateRequest) returns (ApproveCandidateResponse);
   rpc ExpireCycles(ExpireCyclesRequest) returns (ExpireCyclesResponse);
+  rpc EvaluateEligibility(EvaluateEligibilityRequest) returns (EvaluateEligibilityResponse);
   rpc Health(HealthRequest) returns (HealthResponse);
 }
 
@@ -198,4 +199,40 @@ message HealthRequest {}
 message HealthResponse {
   bool ready = 1;
 }
+
+message EvaluateEligibilityRequest {
+  string scholarship_id = 1;
+  string cycle_id = 2;
+  StudentProfileData student_profile = 3;
+}
+
+message StudentProfileData {
+  string nationality = 1;
+  string degree_level = 2;
+  string field_of_study = 3;
+  double cgpa = 4;
+  double grading_scale = 5;
+  int32 graduation_year = 6;
+  repeated LanguageTestScore language_tests = 7;
+}
+
+message LanguageTestScore {
+  string test_type = 1;
+  string score = 2;
+}
+
+message EvaluateEligibilityResponse {
+  string overall_status = 1; // "ELIGIBLE", "INELIGIBLE", "NEEDS_REVIEW"
+  string summary_explanation = 2;
+  repeated RuleEvaluationResult results = 3;
+}
+
+message RuleEvaluationResult {
+  string rule_id = 1;
+  string rule_type = 2;
+  string status = 3; // "ELIGIBLE", "INELIGIBLE", "NEEDS_REVIEW"
+  string reason = 4;
+  string evidence_source = 5;
+}
+
 
