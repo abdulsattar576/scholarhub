@@ -8,9 +8,19 @@ import { StudioModule } from './studio/studio.module';
 import { AdminModule } from './admin/admin.module';
 import { ReadinessModule } from './readiness/readiness.module';
 import { JobsModule } from './jobs/jobs.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
-  imports: [ScholarshipsModule, AuthModule, ApplicationsModule, StudioModule, AdminModule, ReadinessModule, JobsModule],
+  imports: [
+    ScholarshipsModule,
+    AuthModule,
+    ApplicationsModule,
+    StudioModule,
+    AdminModule,
+    ReadinessModule,
+    JobsModule,
+    NotificationsModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })
