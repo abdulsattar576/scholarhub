@@ -154,8 +154,134 @@ const DEFAULT_SCHOLARSHIP: Scholarship = {
   ],
 };
 
+const DEFAULT_SCHOLARSHIPS: Scholarship[] = [
+  DEFAULT_SCHOLARSHIP,
+  {
+    id: "c1a4db77-67ed-4f01-a398-2d52f7008df5",
+    title: "DAAD Helmut-Schmidt-Programme (Master's Scholarships for Public Policy and Good Governance)",
+    providerName: "German Academic Exchange Service (DAAD)",
+    officialUrl: "https://www.daad.de/en/find-funding/scholarship-database/?status=3&origin=14&subjectGrps=&daad=1&q=&page=1&detail=50026200",
+    fundingType: 1, // FULL
+    degreeLevels: [2], // MASTERS
+    targetCountryCodes: ["DE"],
+    activeCycle: {
+      id: "8ce3203e-106f-4c12-b471-1b7aee19dde8",
+      cycleLabel: "Academic Year 2026/27",
+      openAtIso: "2026-06-01T00:00:00Z",
+      deadlineAtIso: "2026-07-31T00:00:00Z",
+      deadlineLocalDate: "2026-07-31",
+      deadlineTimezone: "Europe/Berlin",
+    },
+    documentRequirements: [
+      {
+        id: "daad-doc-1",
+        documentType: "ACADEMIC_CV",
+        requirementLevel: "MANDATORY",
+        attestationRequired: false,
+        instructions: "DAAD application form and a current Europass academic CV (maximum 2 pages).",
+      },
+      {
+        id: "daad-doc-2",
+        documentType: "LETTER_OF_MOTIVATION",
+        requirementLevel: "MANDATORY",
+        attestationRequired: false,
+        instructions: "Detailed letter of motivation (max 2 pages) containing academic reasons for studying in Germany.",
+      },
+      {
+        id: "daad-doc-3",
+        documentType: "TRANSCRIPT",
+        requirementLevel: "MANDATORY",
+        attestationRequired: true,
+        instructions: "Official transcript of records with certified English or German translation.",
+      },
+      {
+        id: "daad-doc-4",
+        documentType: "DEGREE_CERTIFICATE",
+        requirementLevel: "MANDATORY",
+        attestationRequired: true,
+        instructions: "Certified copy of Bachelor degree certificate with official HEC attestation.",
+      },
+      {
+        id: "daad-doc-5",
+        documentType: "RECOMMENDATION_LETTER",
+        requirementLevel: "MANDATORY",
+        attestationRequired: false,
+        instructions: "Letter of recommendation from university lecturer or employer.",
+      },
+      {
+        id: "daad-doc-6",
+        documentType: "LANGUAGE_CERTIFICATE",
+        requirementLevel: "MANDATORY",
+        attestationRequired: false,
+        instructions: "Official IELTS Academic (min 6.5) or TOEFL score report.",
+      },
+    ],
+  },
+  {
+    id: "444bc20b-cc0d-4e1b-9641-14e3fa370240",
+    title: "Erasmus Mundus Joint Master in Software Engineering and Artificial Intelligence",
+    providerName: "European Education and Culture Executive Agency (EACEA)",
+    officialUrl: "https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus_en",
+    fundingType: 1, // FULL
+    degreeLevels: [2], // MASTERS
+    targetCountryCodes: ["DE", "FR", "IT", "ES"],
+    activeCycle: {
+      id: "39dc87b7-1435-4a4e-87f8-81b946a96414",
+      cycleLabel: "Intake 2026/28",
+      openAtIso: "2026-10-01T00:00:00Z",
+      deadlineAtIso: "2027-01-15T00:00:00Z",
+      deadlineLocalDate: "2027-01-15",
+      deadlineTimezone: "Europe/Brussels",
+    },
+    documentRequirements: [
+      {
+        id: "em-doc-1",
+        documentType: "ACADEMIC_CV",
+        requirementLevel: "MANDATORY",
+        attestationRequired: false,
+        instructions: "Detailed Europass CV detailing engineering projects and code repositories.",
+      },
+      {
+        id: "em-doc-2",
+        documentType: "LETTER_OF_MOTIVATION",
+        requirementLevel: "MANDATORY",
+        attestationRequired: false,
+        instructions: "Statement of purpose (max 1000 words) addressing your research objectives across consortium universities.",
+      },
+      {
+        id: "em-doc-3",
+        documentType: "TRANSCRIPT",
+        requirementLevel: "MANDATORY",
+        attestationRequired: true,
+        instructions: "Official transcripts in original language accompanied by a certified English translation.",
+      },
+      {
+        id: "em-doc-4",
+        documentType: "DEGREE_CERTIFICATE",
+        requirementLevel: "MANDATORY",
+        attestationRequired: true,
+        instructions: "B.Sc. Degree certificate or provisional completion letter from registrar.",
+      },
+      {
+        id: "em-doc-5",
+        documentType: "RECOMMENDATION_LETTER",
+        requirementLevel: "MANDATORY",
+        attestationRequired: false,
+        instructions: "Two academic recommendation letters on official university letterhead.",
+      },
+      {
+        id: "em-doc-6",
+        documentType: "LANGUAGE_CERTIFICATE",
+        requirementLevel: "MANDATORY",
+        attestationRequired: false,
+        instructions: "Valid IELTS Academic (min 6.5) or TOEFL score report.",
+      },
+    ],
+  },
+];
+
 export default function Home() {
-  const [scholarships, setScholarships] = useState<Scholarship[]>([DEFAULT_SCHOLARSHIP]);
+  const [scholarships, setScholarships] = useState<Scholarship[]>(DEFAULT_SCHOLARSHIPS);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFunding, setSelectedFunding] = useState("ALL");
   const [activeModal, setActiveModal] = useState<"NONE" | "ELIGIBILITY" | "DOCS" | "AUTH" | "PROFILE" | "APPLICATIONS" | "STUDIO">("NONE");

@@ -1,0 +1,93 @@
+{
+  "title": "Erasmus Mundus Joint Master in Software Engineering and Artificial Intelligence",
+  "provider": "European Education and Culture Executive Agency (EACEA)",
+  "official_url": "https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus_en",
+  "target_countries": [
+    "DE",
+    "FR",
+    "IT",
+    "ES"
+  ],
+  "degree_levels": [
+    "MASTERS"
+  ],
+  "funding": {
+    "funding_type": "FULL",
+    "monthly_stipend": 1400,
+    "currency": "EUR",
+    "covers_tuition": true,
+    "covers_travel": true,
+    "covers_health_insurance": true
+  },
+  "cycle": {
+    "cycle_label": "Intake 2026/28",
+    "open_date": "2026-10-01",
+    "deadline_date": "2027-01-15",
+    "deadline_timezone": "Europe/Brussels",
+    "deadline_precision": "DATE_ONLY"
+  },
+  "eligibility_rules": [
+    {
+      "rule_type": "DEGREE_LEVEL",
+      "operator": "EQUALS",
+      "value": "BACHELORS",
+      "evidence_quote": "Applicants must hold a Bachelor of Science (or equivalent, min 180 ECTS) in Computer Science, Software Engineering, or related fields."
+    },
+    {
+      "rule_type": "GPA",
+      "operator": "GTE",
+      "value": 3.2,
+      "evidence_quote": "Demonstrated academic excellence corresponding to an above-average GPA (minimum 3.2 on a 4.0 scale or top 20% of graduating class)."
+    },
+    {
+      "rule_type": "LANGUAGE",
+      "operator": "GTE",
+      "value": 6.5,
+      "evidence_quote": "Command of English is mandatory: C1 level, IELTS Academic minimum overall 6.5 with no band lower than 6.0, or TOEFL iBT minimum 90."
+    },
+    {
+      "rule_type": "NATIONALITY",
+      "operator": "IN",
+      "value": "PK",
+      "evidence_quote": "Erasmus Mundus scholarships are awarded to students from partner countries worldwide under geographic quota windows."
+    }
+  ],
+  "document_requirements": [
+    {
+      "document_type": "ACADEMIC_CV",
+      "is_mandatory": true,
+      "attestation_required": false,
+      "instructions": "Detailed Europass CV detailing engineering projects, publications, and open-source contributions."
+    },
+    {
+      "document_type": "LETTER_OF_MOTIVATION",
+      "is_mandatory": true,
+      "attestation_required": false,
+      "instructions": "Statement of purpose (max 1000 words) addressing your research objectives across the 3 European consortium universities."
+    },
+    {
+      "document_type": "TRANSCRIPT",
+      "is_mandatory": true,
+      "attestation_required": true,
+      "instructions": "Official transcripts of academic records in original language accompanied by a certified English translation."
+    },
+    {
+      "document_type": "RECOMMENDATION_LETTER",
+      "is_mandatory": true,
+      "attestation_required": false,
+      "instructions": "Two academic recommendation letters on official university letterhead signed by professors who taught the applicant."
+    },
+    {
+      "document_type": "DEGREE_CERTIFICATE",
+      "is_mandatory": true,
+      "attestation_required": true,
+      "instructions": "B.Sc. Degree certificate or provisional completion letter from university registrar."
+    },
+    {
+      "document_type": "LANGUAGE_CERTIFICATE",
+      "is_mandatory": true,
+      "attestation_required": false,
+      "instructions": "Valid IELTS Academic or TOEFL test report form."
+    }
+  ]
+}
