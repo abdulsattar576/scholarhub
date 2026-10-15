@@ -55,6 +55,23 @@ interface EvaluationResult {
   results: RuleResult[];
 }
 
+interface StudentProfile {
+  nationality?: string;
+  degreeLevel?: string;
+  fieldOfStudy?: string;
+  cgpa?: number | string;
+  gradingScale?: number | string;
+  graduationYear?: number;
+}
+
+interface CurrentUser {
+  id: string;
+  email: string;
+  name?: string;
+  role: string;
+  profile?: StudentProfile;
+}
+
 const DEFAULT_SCHOLARSHIP: Scholarship = {
   id: "2f76f1ca-0cd7-4098-92e6-52e04c4935c0",
   title: "Scholarship for international students of TUM",
@@ -98,19 +115,12 @@ const DEFAULT_SCHOLARSHIP: Scholarship = {
       documentType: "RECOMMENDATION_LETTER",
       requirementLevel: "MANDATORY",
       attestationRequired: false,
-      instructions: "Two recommendation letters not older than one semester.",
+      instructions: "Two letters of recommendation from professors/lecturers at TUM.",
     },
     {
       id: "doc-5",
-      documentType: "BANK_STATEMENTS",
+      documentType: "BANK_STATEMENT",
       requirementLevel: "MANDATORY",
-      attestationRequired: true,
-      instructions: "Past 12 months bank statements. Certified German translation required if not in English/German.",
-    },
-    {
-      id: "doc-6",
-      documentType: "PARENTS_INCOME_PROOF",
-      requirementLevel: "OPTIONAL",
       attestationRequired: true,
       instructions: "Proof of parents' or spouse's income (past 12 months) with certified translation.",
     },
@@ -121,10 +131,28 @@ export default function Home() {
   const [scholarships, setScholarships] = useState<Scholarship[]>([DEFAULT_SCHOLARSHIP]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFunding, setSelectedFunding] = useState("ALL");
-  const [activeModal, setActiveModal] = useState<"NONE" | "ELIGIBILITY" | "DOCS">("NONE");
+  const [activeModal, setActiveModal] = useState<"NONE" | "ELIGIBILITY" | "DOCS" | "AUTH" | "PROFILE">("NONE");
   const [selectedScholarship, setSelectedScholarship] = useState<Scholarship>(DEFAULT_SCHOLARSHIP);
 
-  // Student Profile Form State
+  // Authentication State
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [authMode, setAuthMode] = useState<"LOGIN" | "REGISTER">("LOGIN");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authName, setAuthName] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+
+  // Profile Form State
+  const [profileNationality, setProfileNationality] = useState("PK");
+  const [profileDegree, setProfileDegree] = useState("BACHELORS");
+  const [profileField, setProfileField] = useState("Computer Science");
+  const [profileCgpa, setProfileCgpa] = useState("3.60");
+  const [profileGradingScale, setProfileGradingScale] = useState("4.00");
+  const [profileGradYear, setProfileGradYear] = useState("2025");
+  const [profileSaving, setProfileSaving] = useState(false);
+
+  // Student Profile Form State for Eligibility Checker
   const [nationality, setNationality] = useState("PK");
   const [degreeLevel, setDegreeLevel] = useState("BACHELORS");
   const [cgpa, setCgpa] = useState("3.6");
@@ -135,11 +163,49 @@ export default function Home() {
   const [evaluating, setEvaluating] = useState(false);
   const [evaluationResult, setEvaluationResult] = useState<EvaluationResult | null>(null);
 
-  // Attempt to fetch from backend API Gateway
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
+  // Check Current Session & Load Scholarships
   useEffect(() => {
-    async function loadScholarships() {
+    async function initData() {
+      // 1. Check Auth Session
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+        const authRes = await fetch(`${apiUrl}/v1/auth/me`, {
+          credentials: "include",
+        });
+        if (authRes.ok) {
+          const authData = await authRes.json();
+          if (authData.user) {
+            setCurrentUser(authData.user);
+            if (authData.user.profile) {
+              const p = authData.user.profile;
+              if (p.nationality) {
+                setNationality(p.nationality);
+                setProfileNationality(p.nationality);
+              }
+              if (p.degreeLevel) {
+                setDegreeLevel(p.degreeLevel);
+                setProfileDegree(p.degreeLevel);
+              }
+              if (p.cgpa) {
+                setCgpa(String(p.cgpa));
+                setProfileCgpa(String(p.cgpa));
+              }
+              if (p.gradingScale) {
+                setGradingScale(String(p.gradingScale));
+                setProfileGradingScale(String(p.gradingScale));
+              }
+              if (p.fieldOfStudy) setProfileField(p.fieldOfStudy);
+              if (p.graduationYear) setProfileGradYear(String(p.graduationYear));
+            }
+          }
+        }
+      } catch (e) {
+        // Not logged in or service starting
+      }
+
+      // 2. Load Scholarships
+      try {
         const res = await fetch(`${apiUrl}/v1/scholarships`);
         if (res.ok) {
           const data = await res.json();
@@ -148,11 +214,101 @@ export default function Home() {
           }
         }
       } catch (err) {
-        // Fallback to default verified record
+        // Fallback to TUM
       }
     }
-    loadScholarships();
-  }, []);
+    initData();
+  }, [apiUrl]);
+
+  const handleAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthLoading(true);
+    setAuthError("");
+
+    try {
+      const endpoint = authMode === "LOGIN" ? "/v1/auth/login" : "/v1/auth/register";
+      const payload =
+        authMode === "LOGIN"
+          ? { email: authEmail, password: authPassword }
+          : { email: authEmail, password: authPassword, name: authName, nationality: "PK" };
+
+      const res = await fetch(`${apiUrl}${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || "Authentication failed");
+      }
+
+      setCurrentUser(data.user);
+      if (data.user.profile) {
+        if (data.user.profile.nationality) setNationality(data.user.profile.nationality);
+        if (data.user.profile.degreeLevel) setDegreeLevel(data.user.profile.degreeLevel);
+        if (data.user.profile.cgpa) setCgpa(String(data.user.profile.cgpa));
+      }
+      setActiveModal("NONE");
+      setAuthPassword("");
+    } catch (err: any) {
+      setAuthError(err.message || "An unexpected error occurred");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch(`${apiUrl}/v1/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch {
+      // Ignored
+    }
+    setCurrentUser(null);
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProfileSaving(true);
+    try {
+      const res = await fetch(`${apiUrl}/v1/auth/profile`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          nationality: profileNationality,
+          degreeLevel: profileDegree,
+          fieldOfStudy: profileField,
+          cgpa: parseFloat(profileCgpa) || undefined,
+          gradingScale: parseFloat(profileGradingScale) || 4.0,
+          graduationYear: parseInt(profileGradYear, 10) || undefined,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setNationality(profileNationality);
+        setDegreeLevel(profileDegree);
+        setCgpa(profileCgpa);
+        setGradingScale(profileGradingScale);
+        if (currentUser) {
+          setCurrentUser({
+            ...currentUser,
+            profile: data.profile,
+          });
+        }
+        setActiveModal("NONE");
+      }
+    } catch (err) {
+      console.error("Failed to update profile", err);
+    } finally {
+      setProfileSaving(false);
+    }
+  };
 
   const handleOpenEligibility = (item: Scholarship) => {
     setSelectedScholarship(item);
@@ -167,35 +323,31 @@ export default function Home() {
 
   const handleEvaluate = async () => {
     setEvaluating(true);
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-
-    const payload = {
-      scholarshipId: selectedScholarship.id,
-      studentProfile: {
-        nationality,
-        degreeLevel,
-        cgpa: parseFloat(cgpa) || 3.0,
-        gradingScale: parseFloat(gradingScale) || 4.0,
-        languageTests: [{ testType: "IELTS", score: ieltsScore }],
-      },
-    };
-
     try {
       const res = await fetch(`${apiUrl}/v1/scholarships/${selectedScholarship.id}/evaluate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        credentials: "include",
+        body: JSON.stringify({
+          nationality,
+          degreeLevel,
+          cgpa: parseFloat(cgpa) || 3.5,
+          gradingScale: parseFloat(gradingScale) || 4.0,
+          languageScores: {
+            IELTS: parseFloat(ieltsScore) || 7.0,
+          },
+        }),
       });
 
       if (res.ok) {
-        const data = await res.json();
-        setEvaluationResult(data);
-      } else {
-        throw new Error("API error");
+        const result: EvaluationResult = await res.json();
+        setEvaluationResult(result);
+        return;
       }
-    } catch (e) {
-      // Local fallback evaluation simulation
-      const isPakistani = nationality === "PK";
+      throw new Error("Backend evaluation returned non-200");
+    } catch (err) {
+      // Client-side fallback evaluation
+      const isPakistani = nationality.toUpperCase() === "PK";
       setEvaluationResult({
         overallStatus: isPakistani ? "NEEDS_REVIEW" : "INELIGIBLE",
         summaryExplanation: isPakistani
@@ -255,10 +407,39 @@ export default function Home() {
               </span>
             </div>
           </div>
-          <div className="flex items-center space-x-4 text-sm font-medium text-slate-600">
-            <span className="text-xs px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200">
+
+          <div className="flex items-center space-x-3">
+            <span className="hidden sm:inline-block text-xs px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 font-medium text-slate-600">
               🇵🇰 Pakistan ➔ 🇩🇪 Germany Focus
             </span>
+
+            {currentUser ? (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setActiveModal("PROFILE")}
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center gap-1.5 shadow-sm transition-colors"
+                >
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  {currentUser.name || currentUser.email.split("@")[0]}
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="px-3 py-1.5 rounded-xl text-xs font-medium text-slate-500 hover:text-red-600 transition-colors"
+                >
+                  Sign Out
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  setAuthMode("LOGIN");
+                  setActiveModal("AUTH");
+                }}
+                className="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm transition-colors"
+              >
+                Sign In
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -281,100 +462,333 @@ export default function Home() {
               </svg>
               <input
                 type="text"
-                placeholder="Search scholarships, universities (e.g. TUM, DAAD)..."
+                placeholder="Search scholarship name, university, or country..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full text-sm outline-none bg-transparent placeholder:text-slate-400"
+                className="w-full text-sm outline-none text-slate-800 placeholder-slate-400"
               />
             </div>
-            <button className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-blue-600 text-white font-medium text-sm hover:bg-blue-700 transition-colors shadow-sm">
-              Search
-            </button>
           </div>
         </div>
       </section>
 
-      {/* Main Content Area */}
+      {/* Scholarships Listing */}
       <main className="max-w-6xl mx-auto px-4 py-8 flex-1 w-full">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-slate-900">
-            Available Opportunities ({filteredScholarships.length})
-          </h2>
-          <div className="flex items-center space-x-2 text-xs">
-            <span className="text-slate-500">Sorted by:</span>
-            <span className="font-semibold text-slate-700 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
-              Verified Deadline
-            </span>
+          <h2 className="text-xl font-bold text-slate-900">Available Scholarships ({filteredScholarships.length})</h2>
+          <div className="flex gap-2 text-xs">
+            {["ALL", "FULL", "PARTIAL"].map((type) => (
+              <button
+                key={type}
+                onClick={() => setSelectedFunding(type)}
+                className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                  selectedFunding === type
+                    ? "bg-slate-900 text-white"
+                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                {type === "ALL" ? "All Funding" : type}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Scholarships Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {filteredScholarships.map((item) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredScholarships.map((sch) => (
             <div
-              key={item.id}
-              className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow p-6 flex flex-col justify-between"
+              key={sch.id}
+              className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col justify-between shadow-sm hover:shadow-md transition-shadow"
             >
               <div>
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <span className="inline-block text-xs font-semibold px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-100 mb-2">
-                      🇩🇪 Germany
-                    </span>
-                    <h3 className="font-bold text-lg text-slate-900 leading-snug">
-                      {item.title}
-                    </h3>
-                    <p className="text-sm font-medium text-slate-600 mt-1 flex items-center gap-1.5">
-                      <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                      </svg>
-                      {item.providerName}
-                    </p>
-                  </div>
-                  <span className="shrink-0 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                    Grant / Stipend
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200/60 uppercase">
+                    {sch.fundingType === 1 ? "Fully Funded" : sch.fundingType === 2 ? "Partial (500–1,800 €)" : "Stipend"}
+                  </span>
+                  <span className="text-xs text-slate-400 font-mono">
+                    {sch.targetCountryCodes?.join(", ") || "DE"}
                   </span>
                 </div>
 
-                {/* Key metadata grid */}
-                <div className="mt-5 grid grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-100 text-xs">
-                  <div>
-                    <span className="text-slate-400 block">Cycle</span>
-                    <span className="font-semibold text-slate-800">
-                      {item.activeCycle?.cycleLabel || "2026 Intake"}
+                <h3 className="text-base font-bold text-slate-900 mt-2.5 line-clamp-2">
+                  {sch.title}
+                </h3>
+                <p className="text-xs text-slate-500 mt-1 font-medium">{sch.providerName}</p>
+
+                {sch.activeCycle && (
+                  <div className="mt-4 p-2.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
+                    <span className="text-slate-500 font-medium">Next Deadline:</span>
+                    <span className="font-bold text-red-600">
+                      {sch.activeCycle.deadlineLocalDate || "2026-10-15"}
                     </span>
                   </div>
-                  <div>
-                    <span className="text-slate-400 block">Verified Deadline</span>
-                    <span className="font-semibold text-red-600">
-                      {item.activeCycle?.deadlineLocalDate || "15 Oct 2026"}
-                    </span>
-                  </div>
-                </div>
+                )}
               </div>
 
-              {/* Action Buttons */}
-              <div className="mt-6 pt-4 border-t border-slate-100 flex items-center gap-3">
+              <div className="mt-6 pt-4 border-t border-slate-100 flex items-center gap-2">
                 <button
-                  onClick={() => handleOpenEligibility(item)}
-                  className="flex-1 py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-colors text-center shadow-sm flex items-center justify-center gap-2"
+                  onClick={() => handleOpenEligibility(sch)}
+                  className="flex-1 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-colors shadow-sm"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
                   Check Eligibility
                 </button>
                 <button
-                  onClick={() => handleOpenDocs(item)}
-                  className="py-2.5 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium text-sm transition-colors"
+                  onClick={() => handleOpenDocs(sch)}
+                  className="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors"
                 >
-                  Document Checklist
+                  Docs
                 </button>
               </div>
             </div>
           ))}
         </div>
       </main>
+
+      {/* MODAL: Auth (Sign In / Register) */}
+      {activeModal === "AUTH" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full p-6 shadow-xl">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <h3 className="font-bold text-lg text-slate-900">
+                {authMode === "LOGIN" ? "Sign In to ScholarHub" : "Create Student Account"}
+              </h3>
+              <button onClick={() => setActiveModal("NONE")} className="text-slate-400 hover:text-slate-600 p-1">
+                ✕
+              </button>
+            </div>
+
+            {/* Google OAuth Button */}
+            <div className="mt-5">
+              <a
+                href={`${apiUrl}/v1/auth/google`}
+                className="w-full flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-xl border border-slate-300 hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-sm transition-colors"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24">
+                  <path
+                    fill="#4285F4"
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                  />
+                </svg>
+                Continue with Google
+              </a>
+            </div>
+
+            <div className="relative my-4 flex items-center justify-center">
+              <div className="border-t border-slate-200 w-full"></div>
+              <span className="bg-white px-2 text-[11px] uppercase tracking-wider text-slate-400 font-semibold absolute">
+                or email
+              </span>
+            </div>
+
+            {authError && (
+              <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700">
+                {authError}
+              </div>
+            )}
+
+            <form onSubmit={handleAuthSubmit} className="space-y-3.5 text-xs">
+              {authMode === "REGISTER" && (
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={authName}
+                    onChange={(e) => setAuthName(e.target.value)}
+                    placeholder="e.g. Syed Ali"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none focus:border-blue-600"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Email Address</label>
+                <input
+                  type="email"
+                  required
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  placeholder="student@example.pk"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none focus:border-blue-600"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Password</label>
+                <input
+                  type="password"
+                  required
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none focus:border-blue-600"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={authLoading}
+                className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-sm transition-colors mt-2"
+              >
+                {authLoading
+                  ? "Processing..."
+                  : authMode === "LOGIN"
+                  ? "Sign In"
+                  : "Create Account"}
+              </button>
+            </form>
+
+            <div className="mt-4 text-center">
+              {authMode === "LOGIN" ? (
+                <p className="text-xs text-slate-500">
+                  Don&apos;t have an account?{" "}
+                  <button
+                    onClick={() => {
+                      setAuthMode("REGISTER");
+                      setAuthError("");
+                    }}
+                    className="text-blue-600 font-semibold hover:underline"
+                  >
+                    Register now
+                  </button>
+                </p>
+              ) : (
+                <p className="text-xs text-slate-500">
+                  Already have an account?{" "}
+                  <button
+                    onClick={() => {
+                      setAuthMode("LOGIN");
+                      setAuthError("");
+                    }}
+                    className="text-blue-600 font-semibold hover:underline"
+                  >
+                    Sign In
+                  </button>
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Student Profile */}
+      {activeModal === "PROFILE" && currentUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full p-6 shadow-xl">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div>
+                <h3 className="font-bold text-lg text-slate-900">Student Profile</h3>
+                <p className="text-xs text-slate-500">{currentUser.email}</p>
+              </div>
+              <button onClick={() => setActiveModal("NONE")} className="text-slate-400 hover:text-slate-600 p-1">
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProfile} className="mt-4 space-y-3.5 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Nationality</label>
+                  <select
+                    value={profileNationality}
+                    onChange={(e) => setProfileNationality(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none"
+                  >
+                    <option value="PK">Pakistan (PK)</option>
+                    <option value="IN">India (IN)</option>
+                    <option value="BD">Bangladesh (BD)</option>
+                    <option value="DE">Germany (DE)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Target Degree</label>
+                  <select
+                    value={profileDegree}
+                    onChange={(e) => setProfileDegree(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none"
+                  >
+                    <option value="BACHELORS">Bachelor&apos;s</option>
+                    <option value="MASTERS">Master&apos;s</option>
+                    <option value="PHD">PhD</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Field of Study</label>
+                <input
+                  type="text"
+                  value={profileField}
+                  onChange={(e) => setProfileField(e.target.value)}
+                  placeholder="Computer Science, Mechanical Eng..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">CGPA</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={profileCgpa}
+                    onChange={(e) => setProfileCgpa(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Scale</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={profileGradingScale}
+                    onChange={(e) => setProfileGradingScale(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Grad Year</label>
+                  <input
+                    type="number"
+                    value={profileGradYear}
+                    onChange={(e) => setProfileGradYear(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveModal("NONE")}
+                  className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 font-medium text-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={profileSaving}
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-sm"
+                >
+                  {profileSaving ? "Saving..." : "Save Profile"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* MODAL 1: Eligibility Checker */}
       {activeModal === "ELIGIBILITY" && (
@@ -394,105 +808,132 @@ export default function Home() {
             </div>
 
             {/* Profile Input Form */}
-            <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-medium">
-              <div>
-                <label className="text-slate-600 block mb-1">Your Nationality</label>
-                <select
-                  value={nationality}
-                  onChange={(e) => setNationality(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-slate-200 bg-white text-slate-800 outline-none"
-                >
-                  <option value="PK">🇵🇰 Pakistan</option>
-                  <option value="IN">🇮🇳 India</option>
-                  <option value="DE">🇩🇪 Germany (EU)</option>
-                  <option value="OTHER">Other Country</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-slate-600 block mb-1">Current/Highest Degree</label>
-                <select
-                  value={degreeLevel}
-                  onChange={(e) => setDegreeLevel(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-slate-200 bg-white text-slate-800 outline-none"
-                >
-                  <option value="BACHELORS">Bachelor&apos;s Degree</option>
-                  <option value="MASTERS">Master&apos;s Degree</option>
-                  <option value="HIGH_SCHOOL">High School</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-slate-600 block mb-1">CGPA (Out of 4.0)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={cgpa}
-                  onChange={(e) => setCgpa(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-slate-200 bg-white text-slate-800 outline-none"
-                  placeholder="3.6"
-                />
-              </div>
-
-              <div>
-                <label className="text-slate-600 block mb-1">IELTS / TOEFL Score</label>
-                <input
-                  type="text"
-                  value={ieltsScore}
-                  onChange={(e) => setIeltsScore(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-slate-200 bg-white text-slate-800 outline-none"
-                  placeholder="7.5"
-                />
-              </div>
-            </div>
-
-            <button
-              onClick={handleEvaluate}
-              disabled={evaluating}
-              className="mt-5 w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-colors shadow-sm disabled:opacity-50"
-            >
-              {evaluating ? "Evaluating Rules..." : "Run Eligibility Check"}
-            </button>
-
-            {/* Evaluation Results Section */}
-            {evaluationResult && (
-              <div className="mt-6 pt-5 border-t border-slate-100">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Evaluation Result
-                  </span>
-                  <span
-                    className={`text-xs font-bold px-3 py-1 rounded-full ${
-                      evaluationResult.overallStatus === "ELIGIBLE"
-                        ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                        : evaluationResult.overallStatus === "INELIGIBLE"
-                        ? "bg-rose-100 text-rose-800 border border-rose-200"
-                        : "bg-amber-100 text-amber-800 border border-amber-200"
-                    }`}
+            <div className="mt-4 space-y-3.5 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Your Nationality</label>
+                  <select
+                    value={nationality}
+                    onChange={(e) => setNationality(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white outline-none focus:border-blue-600"
                   >
-                    {evaluationResult.overallStatus}
-                  </span>
+                    <option value="PK">Pakistan (Non-EU / Third Country)</option>
+                    <option value="DE">Germany (EU National)</option>
+                    <option value="IN">India (Non-EU / Third Country)</option>
+                  </select>
                 </div>
 
-                <p className="text-xs text-slate-700 p-3 rounded-xl bg-slate-50 border border-slate-100 mb-4">
-                  {evaluationResult.summaryExplanation}
-                </p>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Target Degree</label>
+                  <select
+                    value={degreeLevel}
+                    onChange={(e) => setDegreeLevel(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white outline-none focus:border-blue-600"
+                  >
+                    <option value="MASTERS">Master&apos;s Degree</option>
+                    <option value="BACHELORS">Bachelor&apos;s Degree</option>
+                    <option value="PHD">PhD / Doctorate</option>
+                  </select>
+                </div>
+              </div>
 
-                <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">CGPA / Grade</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={cgpa}
+                    onChange={(e) => setCgpa(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none focus:border-blue-600"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Scale</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={gradingScale}
+                    onChange={(e) => setGradingScale(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none focus:border-blue-600"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">IELTS Score</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={ieltsScore}
+                    onChange={(e) => setIeltsScore(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none focus:border-blue-600"
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={handleEvaluate}
+                disabled={evaluating}
+                className="w-full mt-2 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-sm transition-colors flex items-center justify-center gap-2"
+              >
+                {evaluating ? (
+                  <span>Evaluating Rules...</span>
+                ) : (
+                  <span>Run Deterministic Rule Evaluation</span>
+                )}
+              </button>
+            </div>
+
+            {/* Evaluation Results Card */}
+            {evaluationResult && (
+              <div className="mt-6 pt-5 border-t border-slate-100">
+                <div
+                  className={`p-4 rounded-xl border flex items-start gap-3 ${
+                    evaluationResult.overallStatus === "ELIGIBLE"
+                      ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                      : evaluationResult.overallStatus === "INELIGIBLE"
+                      ? "bg-red-50 border-red-200 text-red-900"
+                      : "bg-amber-50 border-amber-200 text-amber-900"
+                  }`}
+                >
+                  <div className="text-xl">
+                    {evaluationResult.overallStatus === "ELIGIBLE"
+                      ? "✅"
+                      : evaluationResult.overallStatus === "INELIGIBLE"
+                      ? "❌"
+                      : "⚠️"}
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-sm">
+                      {evaluationResult.overallStatus === "ELIGIBLE"
+                        ? "You are Eligible!"
+                        : evaluationResult.overallStatus === "INELIGIBLE"
+                        ? "Currently Ineligible"
+                        : "Requires Review / Further Criteria"}
+                    </h4>
+                    <p className="text-xs mt-0.5 leading-relaxed">
+                      {evaluationResult.summaryExplanation}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 space-y-2.5">
+                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                    Rule Evidence Breakdown:
+                  </span>
                   {evaluationResult.results.map((r, i) => (
                     <div
                       key={i}
-                      className="p-3 rounded-xl border border-slate-100 bg-white shadow-2xs text-xs"
+                      className="p-3 rounded-xl border border-slate-100 bg-slate-50 text-xs flex flex-col gap-1"
                     >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-bold text-slate-800">{r.ruleType}</span>
+                      <div className="flex items-center justify-between font-bold">
+                        <span className="text-slate-800">{r.ruleType}</span>
                         <span
-                          className={`font-semibold ${
+                          className={`px-2 py-0.5 rounded text-[10px] ${
                             r.status === "ELIGIBLE"
-                              ? "text-emerald-600"
+                              ? "bg-emerald-100 text-emerald-800"
                               : r.status === "INELIGIBLE"
-                              ? "text-rose-600"
-                              : "text-amber-600"
+                              ? "bg-red-100 text-red-800"
+                              : "bg-amber-100 text-amber-800"
                           }`}
                         >
                           {r.status}
