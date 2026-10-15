@@ -8,7 +8,12 @@ import {
   Param,
   UseGuards,
   Req,
+  Res,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { ApplicationsService } from './applications.service';
 import { AuthGuard } from '../auth/auth.guard';
 import { ApplicationState } from '@prisma/application-client';
@@ -78,9 +83,59 @@ export class ApplicationsController {
     );
   }
 
+  @Post(':id/documents/:docId/upload')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadDocument(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Param('docId') docId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return await this.applicationsService.uploadDocumentFile(
+      req.user.id,
+      id,
+      docId,
+      file,
+    );
+  }
+
+  @Get(':id/documents/:docId/download')
+  async downloadDocument(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Param('docId') docId: string,
+    @Res() res: Response,
+  ) {
+    const fileInfo = await this.applicationsService.getDocumentFile(
+      req.user.id,
+      id,
+      docId,
+    );
+    res.setHeader('Content-Type', fileInfo.mimeType);
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="${encodeURIComponent(fileInfo.fileName)}"`,
+    );
+    res.sendFile(fileInfo.filePath);
+  }
+
+  @Delete(':id/documents/:docId/file')
+  async deleteDocumentFile(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Param('docId') docId: string,
+  ) {
+    return await this.applicationsService.deleteDocumentFile(
+      req.user.id,
+      id,
+      docId,
+    );
+  }
+
   @Delete(':id')
   async deleteApplication(@Req() req: any, @Param('id') id: string) {
     return await this.applicationsService.deleteApplication(req.user.id, id);
   }
 }
+
 

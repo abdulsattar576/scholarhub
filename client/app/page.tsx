@@ -81,6 +81,10 @@ interface ApplicationDoc {
   translationDone: boolean;
   instructions?: string;
   notes?: string;
+  fileName?: string;
+  fileSize?: number;
+  mimeType?: string;
+  uploadedAt?: string;
 }
 
 interface ApplicationItem {
@@ -360,6 +364,7 @@ export default function Home() {
 
   // Document Export State
   const [exportingDoc, setExportingDoc] = useState(false);
+  const [uploadingDocId, setUploadingDocId] = useState<string | null>(null);
 
   // Student Notifications State
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -700,6 +705,52 @@ export default function Home() {
     } catch (err) {
       console.error("Failed to delete application", err);
     }
+  };
+
+  const handleFileUpload = async (appId: string, docId: string, file: File) => {
+    setUploadingDocId(docId);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch(`${apiUrl}/v1/applications/${appId}/documents/${docId}/upload`, {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+
+      if (res.ok) {
+        await loadApplications();
+        setTrackToast("File uploaded and document marked as prepared!");
+        setTimeout(() => setTrackToast(""), 3500);
+      } else {
+        const err = await res.json();
+        alert(err.message || "Upload failed");
+      }
+    } catch (err) {
+      console.error("File upload failed", err);
+    } finally {
+      setUploadingDocId(null);
+    }
+  };
+
+  const handleFileDelete = async (appId: string, docId: string) => {
+    try {
+      const res = await fetch(`${apiUrl}/v1/applications/${appId}/documents/${docId}/file`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      if (res.ok) {
+        await loadApplications();
+      }
+    } catch (err) {
+      console.error("File deletion failed", err);
+    }
+  };
+
+  const handleDownloadFile = (appId: string, docId: string) => {
+    window.open(`${apiUrl}/v1/applications/${appId}/documents/${docId}/download`, "_blank");
   };
 
   // AI Studio Generation Handlers
@@ -2158,6 +2209,60 @@ export default function Home() {
                                 Certified German Translation ℹ
                               </span>
                             </label>
+                          </div>
+
+                          {/* Private File Attachment Row */}
+                          <div className="pt-1.5 mt-0.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                            {doc.fileName ? (
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-medium text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 line-clamp-1 max-w-[200px]">
+                                  📎 {doc.fileName}
+                                </span>
+                                <span className="text-[10px] text-slate-400">
+                                  {doc.fileSize ? `${Math.round(doc.fileSize / 1024)} KB` : ""}
+                                </span>
+                                <button
+                                  onClick={() => handleDownloadFile(app.id, doc.id)}
+                                  className="text-blue-600 hover:underline font-semibold"
+                                  title="View or Download Stored File"
+                                >
+                                  View / Download
+                                </button>
+                                <button
+                                  onClick={() => handleFileDelete(app.id, doc.id)}
+                                  className="text-slate-400 hover:text-red-600 ml-1"
+                                  title="Remove Stored File"
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="file"
+                                  id={`file-${doc.id}`}
+                                  accept=".pdf,.png,.jpg,.jpeg,.webp"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    if (e.target.files && e.target.files[0]) {
+                                      handleFileUpload(app.id, doc.id, e.target.files[0]);
+                                    }
+                                  }}
+                                />
+                                <button
+                                  onClick={() => document.getElementById(`file-${doc.id}`)?.click()}
+                                  disabled={uploadingDocId === doc.id}
+                                  className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-[11px] flex items-center gap-1 transition-colors"
+                                >
+                                  {uploadingDocId === doc.id ? (
+                                    <span>Uploading...</span>
+                                  ) : (
+                                    <span>📎 Attach File (PDF / Image)</span>
+                                  )}
+                                </button>
+                                <span className="text-[10px] text-slate-400">Private &amp; Secure (Max 10MB)</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}
