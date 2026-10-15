@@ -83,3 +83,4 @@ export class ApplicationsController {
     return await this.applicationsService.deleteApplication(req.user.id, id);
   }
 }
+

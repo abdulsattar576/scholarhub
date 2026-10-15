@@ -172,3 +172,4 @@ export class ApplicationsService {
     return { message: 'Application removed from tracker' };
   }
 }
+

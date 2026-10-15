@@ -158,7 +158,7 @@ export default function Home() {
   const [scholarships, setScholarships] = useState<Scholarship[]>([DEFAULT_SCHOLARSHIP]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFunding, setSelectedFunding] = useState("ALL");
-  const [activeModal, setActiveModal] = useState<"NONE" | "ELIGIBILITY" | "DOCS" | "AUTH" | "PROFILE" | "APPLICATIONS">("NONE");
+  const [activeModal, setActiveModal] = useState<"NONE" | "ELIGIBILITY" | "DOCS" | "AUTH" | "PROFILE" | "APPLICATIONS" | "STUDIO">("NONE");
   const [selectedScholarship, setSelectedScholarship] = useState<Scholarship>(DEFAULT_SCHOLARSHIP);
 
   // Authentication State
@@ -172,8 +172,17 @@ export default function Home() {
 
   // Applications & Readiness State
   const [applications, setApplications] = useState<ApplicationItem[]>([]);
-  const [selectedApp, setSelectedApp] = useState<ApplicationItem | null>(null);
   const [trackToast, setTrackToast] = useState("");
+
+  // AI Studio State
+  const [studioTab, setStudioTab] = useState<"LETTER" | "CV">("LETTER");
+  const [studioPersonalNotes, setStudioPersonalNotes] = useState("");
+  const [studioTechSkills, setStudioTechSkills] = useState("Python, C++, Machine Learning, PostgreSQL, Git, Docker");
+  const [studioProjects, setStudioProjects] = useState("Undergraduate Capstone Project on Deep Learning and Distributed Heuristics");
+  const [studioGenerating, setStudioGenerating] = useState(false);
+  const [studioLetterResult, setStudioLetterResult] = useState<any>(null);
+  const [studioCvResult, setStudioCvResult] = useState<any>(null);
+  const [copiedNotice, setCopiedNotice] = useState(false);
 
   // Profile Form State
   const [profileNationality, setProfileNationality] = useState("PK");
@@ -205,10 +214,6 @@ export default function Home() {
       if (res.ok) {
         const apps = await res.json();
         setApplications(apps);
-        if (selectedApp) {
-          const found = apps.find((a: ApplicationItem) => a.id === selectedApp.id);
-          if (found) setSelectedApp(found);
-        }
       }
     } catch {
       // Ignored
@@ -412,12 +417,85 @@ export default function Home() {
         credentials: "include",
       });
       if (res.ok) {
-        setSelectedApp(null);
         await loadApplications();
       }
     } catch (err) {
       console.error("Failed to delete application", err);
     }
+  };
+
+  // AI Studio Generation Handlers
+  const handleGenerateLetter = async () => {
+    if (!currentUser) {
+      setAuthMode("LOGIN");
+      setActiveModal("AUTH");
+      return;
+    }
+
+    setStudioGenerating(true);
+    try {
+      const res = await fetch(`${apiUrl}/v1/studio/motivation-letter`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          scholarshipTitle: selectedScholarship.title,
+          providerName: selectedScholarship.providerName,
+          targetDegree: degreeLevel,
+          fieldOfStudy: profileField,
+          instructions:
+            selectedScholarship.documentRequirements?.find((d) => d.documentType === "LETTER_OF_MOTIVATION")
+              ?.instructions || "100-200 words motivation and financial standing statement.",
+          studentPersonalContext: studioPersonalNotes,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setStudioLetterResult(data);
+      }
+    } catch (err) {
+      console.error("Failed to generate letter", err);
+    } finally {
+      setStudioGenerating(false);
+    }
+  };
+
+  const handleGenerateCv = async () => {
+    if (!currentUser) {
+      setAuthMode("LOGIN");
+      setActiveModal("AUTH");
+      return;
+    }
+
+    setStudioGenerating(true);
+    try {
+      const res = await fetch(`${apiUrl}/v1/studio/academic-cv`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          targetScholarship: selectedScholarship.title,
+          technicalSkills: studioTechSkills,
+          projectsSummary: studioProjects,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setStudioCvResult(data);
+      }
+    } catch (err) {
+      console.error("Failed to generate CV", err);
+    } finally {
+      setStudioGenerating(false);
+    }
+  };
+
+  const handleCopyText = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedNotice(true);
+    setTimeout(() => setCopiedNotice(false), 2500);
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -468,6 +546,11 @@ export default function Home() {
   const handleOpenDocs = (item: Scholarship) => {
     setSelectedScholarship(item);
     setActiveModal("DOCS");
+  };
+
+  const handleOpenStudio = (item: Scholarship) => {
+    setSelectedScholarship(item);
+    setActiveModal("STUDIO");
   };
 
   const handleEvaluate = async () => {
@@ -594,6 +677,16 @@ export default function Home() {
                 </button>
 
                 <button
+                  onClick={() => {
+                    setSelectedScholarship(scholarships[0] || DEFAULT_SCHOLARSHIP);
+                    setActiveModal("STUDIO");
+                  }}
+                  className="px-3 py-1.5 rounded-xl border border-purple-200 bg-purple-50/70 hover:bg-purple-100 text-xs font-semibold text-purple-800 flex items-center gap-1.5 shadow-sm transition-colors"
+                >
+                  <span>✨ AI Studio</span>
+                </button>
+
+                <button
                   onClick={() => setActiveModal("PROFILE")}
                   className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center gap-1.5 shadow-sm transition-colors"
                 >
@@ -705,12 +798,18 @@ export default function Home() {
                   )}
                 </div>
 
-                <div className="mt-6 pt-4 border-t border-slate-100 flex items-center gap-2">
+                <div className="mt-6 pt-4 border-t border-slate-100 flex flex-wrap items-center gap-2">
                   <button
                     onClick={() => handleOpenEligibility(sch)}
                     className="flex-1 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-colors shadow-sm"
                   >
-                    Check Eligibility
+                    Eligibility
+                  </button>
+                  <button
+                    onClick={() => handleOpenStudio(sch)}
+                    className="px-3 py-2 rounded-xl border border-purple-200 bg-purple-50/70 hover:bg-purple-100 text-purple-700 text-xs font-semibold transition-colors flex items-center gap-1"
+                  >
+                    ✨ AI Studio
                   </button>
                   <button
                     onClick={() => handleTrackScholarship(sch)}
@@ -724,7 +823,7 @@ export default function Home() {
                   </button>
                   <button
                     onClick={() => handleOpenDocs(sch)}
-                    className="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors"
+                    className="px-2.5 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors"
                   >
                     Docs
                   </button>
@@ -734,6 +833,221 @@ export default function Home() {
           })}
         </div>
       </main>
+
+      {/* MODAL: AI Application Studio */}
+      {activeModal === "STUDIO" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-3xl w-full max-h-[92vh] overflow-y-auto p-6 shadow-2xl">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">✨</span>
+                <div>
+                  <h3 className="font-bold text-lg text-slate-900">AI Application Studio</h3>
+                  <p className="text-xs text-slate-500">
+                    Draft customized, fact-compliant Motivation Letters & Europass CVs tailored for {selectedScholarship.providerName}.
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setActiveModal("NONE")} className="text-slate-400 hover:text-slate-600 p-1">
+                ✕
+              </button>
+            </div>
+
+            {/* Studio Navigation Tabs */}
+            <div className="flex border-b border-slate-200 mt-4 text-xs font-semibold">
+              <button
+                onClick={() => setStudioTab("LETTER")}
+                className={`pb-2.5 px-4 transition-colors ${
+                  studioTab === "LETTER"
+                    ? "border-b-2 border-purple-600 text-purple-700 font-bold"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                Motivation Letter / SOP
+              </button>
+              <button
+                onClick={() => setStudioTab("CV")}
+                className={`pb-2.5 px-4 transition-colors ${
+                  studioTab === "CV"
+                    ? "border-b-2 border-purple-600 text-purple-700 font-bold"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                European Academic CV
+              </button>
+            </div>
+
+            {/* TAB 1: Motivation Letter */}
+            {studioTab === "LETTER" && (
+              <div className="mt-4 space-y-4 text-xs">
+                <div className="p-3 rounded-xl bg-purple-50/50 border border-purple-100">
+                  <span className="font-bold text-purple-900 block">Target Scholarship:</span>
+                  <span className="text-purple-800">{selectedScholarship.title}</span>
+                  <span className="text-slate-500 block mt-1 text-[11px]">
+                    Official Requirement:{" "}
+                    {selectedScholarship.documentRequirements?.find((d) => d.documentType === "LETTER_OF_MOTIVATION")
+                      ?.instructions || "100-200 words motivation statement"}
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Your Personal & Financial Context (Currency shocks, thesis focus, Munich living expenses):
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={studioPersonalNotes}
+                    onChange={(e) => setStudioPersonalNotes(e.target.value)}
+                    placeholder="e.g. Rupee devaluation increased monthly living deficit in Munich. Focusing my research on Distributed Systems and High-Performance Cloud Architectures."
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none focus:border-purple-600 text-xs"
+                  ></textarea>
+                </div>
+
+                <button
+                  onClick={handleGenerateLetter}
+                  disabled={studioGenerating}
+                  className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold shadow-sm transition-colors flex items-center justify-center gap-2"
+                >
+                  {studioGenerating ? (
+                    <span>Generating Fact-Checked Draft with Gemini 3.8 Flash...</span>
+                  ) : (
+                    <span>✨ Generate Tailored Motivation Letter</span>
+                  )}
+                </button>
+
+                {studioLetterResult && (
+                  <div className="mt-5 p-4 rounded-xl border border-purple-200 bg-white shadow-sm space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-800 text-sm">{studioLetterResult.title}</span>
+                      <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-800 text-[11px] font-bold">
+                        {studioLetterResult.wordCount} Words
+                      </span>
+                    </div>
+
+                    <div className="p-3 bg-slate-50 rounded-lg text-slate-700 leading-relaxed font-sans whitespace-pre-line text-xs border border-slate-100">
+                      {studioLetterResult.letterContent}
+                    </div>
+
+                    {studioLetterResult.keyArguments && (
+                      <div className="space-y-1">
+                        <span className="font-bold text-[11px] text-slate-600 uppercase">Key Evidence Points:</span>
+                        <ul className="list-disc list-inside text-[11px] text-slate-600 space-y-0.5">
+                          {studioLetterResult.keyArguments.map((arg: string, idx: number) => (
+                            <li key={idx}>{arg}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    <div className="pt-2 flex items-center justify-between border-t border-slate-100">
+                      <span className="text-[11px] text-slate-400">
+                        Zero fabrication policy: Edit to reflect personal voice.
+                      </span>
+                      <button
+                        onClick={() => handleCopyText(studioLetterResult.letterContent)}
+                        className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-1.5"
+                      >
+                        {copiedNotice ? "✓ Copied to Clipboard" : "📋 Copy Letter"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 2: Academic CV */}
+            {studioTab === "CV" && (
+              <div className="mt-4 space-y-4 text-xs">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Technical Skills & Lab Tools:</label>
+                  <input
+                    type="text"
+                    value={studioTechSkills}
+                    onChange={(e) => setStudioTechSkills(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Key Academic Projects & Capstone Summary:
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={studioProjects}
+                    onChange={(e) => setStudioProjects(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none"
+                  ></textarea>
+                </div>
+
+                <button
+                  onClick={handleGenerateCv}
+                  disabled={studioGenerating}
+                  className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold shadow-sm transition-colors flex items-center justify-center gap-2"
+                >
+                  {studioGenerating ? (
+                    <span>Formatting European Academic CV...</span>
+                  ) : (
+                    <span>✨ Build European Standard CV</span>
+                  )}
+                </button>
+
+                {studioCvResult && (
+                  <div className="mt-5 p-4 rounded-xl border border-slate-200 bg-white space-y-3">
+                    <div className="border-b border-slate-100 pb-2">
+                      <h4 className="font-bold text-base text-slate-900">{studioCvResult.personalInfo?.fullName}</h4>
+                      <p className="text-xs text-purple-700 font-medium">{studioCvResult.personalInfo?.targetHeadline}</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">{studioCvResult.personalInfo?.email} • {studioCvResult.personalInfo?.nationality}</p>
+                    </div>
+
+                    <div>
+                      <span className="font-bold text-slate-800 text-[11px] uppercase tracking-wide">Academic Summary</span>
+                      <p className="text-slate-600 mt-1 leading-relaxed text-xs">{studioCvResult.academicSummary}</p>
+                    </div>
+
+                    {studioCvResult.education && (
+                      <div>
+                        <span className="font-bold text-slate-800 text-[11px] uppercase tracking-wide">Education</span>
+                        {studioCvResult.education.map((edu: any, i: number) => (
+                          <div key={i} className="mt-1 text-slate-600">
+                            <span className="font-semibold text-slate-800">{edu.degree}</span> — {edu.institution} ({edu.year})
+                            <span className="ml-2 font-mono text-[11px] text-emerald-700 font-bold">GPA: {edu.cgpa}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {studioCvResult.academicProjects && (
+                      <div>
+                        <span className="font-bold text-slate-800 text-[11px] uppercase tracking-wide">Academic Projects</span>
+                        {studioCvResult.academicProjects.map((p: any, i: number) => (
+                          <div key={i} className="mt-1 text-slate-600">
+                            <span className="font-semibold text-slate-800">{p.title}</span> ({p.role})
+                            <p className="text-slate-500 mt-0.5">{p.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="pt-2 flex items-center justify-end border-t border-slate-100">
+                      <button
+                        onClick={() =>
+                          handleCopyText(
+                            `${studioCvResult.personalInfo?.fullName}\n${studioCvResult.personalInfo?.targetHeadline}\n\nSummary:\n${studioCvResult.academicSummary}`
+                          )
+                        }
+                        className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold"
+                      >
+                        {copiedNotice ? "✓ Copied" : "📋 Copy CV Summary"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* MODAL: Applications Hub & Document Tracker */}
       {activeModal === "APPLICATIONS" && (
