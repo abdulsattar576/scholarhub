@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Post,
   Patch,
   Param,
   Body,
@@ -48,5 +49,11 @@ export class AdminController {
   ) {
     return await this.adminService.updateCycleStatus(cycleId, status);
   }
+
+  @Post('lifecycle/reconcile')
+  async reconcileLifecycle() {
+    return await this.adminService.reconcileLifecycle();
+  }
 }
+
 

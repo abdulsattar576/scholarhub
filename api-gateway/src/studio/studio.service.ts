@@ -195,4 +195,244 @@ Key Projects Context: "${params.projectsSummary || 'Undergraduate Capstone Proje
       throw new BadRequestException('Failed to parse structured JSON from AI output');
     }
   }
+
+  exportAcademicCv(cvData: any, format: 'markdown' | 'html' = 'markdown') {
+    if (!cvData) {
+      throw new BadRequestException('No CV data provided for export');
+    }
+
+    const { personalInfo, academicSummary, education = [], technicalAndLabSkills = [], academicProjects = [], languages = [] } = cvData;
+    const name = personalInfo?.fullName || 'Applicant';
+
+    if (format === 'markdown') {
+      let md = `# ${name}\n`;
+      md += `**Email:** ${personalInfo?.email || 'N/A'} | **Nationality:** ${personalInfo?.nationality || 'Pakistani'}\n`;
+      if (personalInfo?.targetHeadline) md += `*${personalInfo.targetHeadline}*\n\n`;
+
+      if (academicSummary) {
+        md += `## Academic Summary\n${academicSummary}\n\n`;
+      }
+
+      if (education.length > 0) {
+        md += `## Education\n`;
+        education.forEach((edu: any) => {
+          md += `### ${edu.degree} — ${edu.institution}\n`;
+          md += `*${edu.year || ''} | CGPA: ${edu.cgpa || 'N/A'}*\n`;
+          if (edu.highlights && Array.isArray(edu.highlights)) {
+            edu.highlights.forEach((h: string) => {
+              md += `- ${h}\n`;
+            });
+          }
+          md += `\n`;
+        });
+      }
+
+      if (academicProjects.length > 0) {
+        md += `## Key Academic & Research Projects\n`;
+        academicProjects.forEach((proj: any) => {
+          md += `### ${proj.title} (${proj.role || 'Lead'})\n`;
+          md += `${proj.description || ''}\n`;
+          if (proj.outcomes && Array.isArray(proj.outcomes)) {
+            proj.outcomes.forEach((o: string) => {
+              md += `- ${o}\n`;
+            });
+          }
+          md += `\n`;
+        });
+      }
+
+      if (technicalAndLabSkills.length > 0) {
+        md += `## Technical & Laboratory Skills\n`;
+        technicalAndLabSkills.forEach((cat: any) => {
+          md += `- **${cat.category}:** ${(cat.skills || []).join(', ')}\n`;
+        });
+        md += `\n`;
+      }
+
+      if (languages.length > 0) {
+        md += `## Languages\n`;
+        languages.forEach((lang: any) => {
+          md += `- **${lang.language}:** ${lang.proficiency}\n`;
+        });
+        md += `\n`;
+      }
+
+      return {
+        format: 'markdown',
+        filename: `${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}_academic_cv.md`,
+        content: md,
+      };
+    } else {
+      // Formatted Print-Ready HTML European Template
+      let html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>${name} - Academic Curriculum Vitae</title>
+  <style>
+    @page { size: A4; margin: 20mm; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1e293b; line-height: 1.5; margin: 0; padding: 24px; background: #fff; }
+    .header { border-bottom: 2px solid #0284c7; padding-bottom: 12px; margin-bottom: 20px; }
+    h1 { margin: 0 0 6px 0; font-size: 26px; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px; }
+    .contact-line { font-size: 13px; color: #64748b; margin-bottom: 4px; }
+    .headline { font-size: 14px; font-weight: 600; color: #0284c7; font-style: italic; }
+    h2 { font-size: 16px; color: #0369a1; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-top: 18px; margin-bottom: 10px; }
+    .section-content { font-size: 13px; margin-bottom: 14px; }
+    .entry { margin-bottom: 12px; }
+    .entry-header { display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; }
+    .entry-sub { display: flex; justify-content: space-between; font-style: italic; color: #475569; font-size: 12px; margin-bottom: 4px; }
+    ul { margin: 4px 0 0 20px; padding: 0; font-size: 12.5px; color: #334155; }
+    li { margin-bottom: 2px; }
+    @media print {
+      body { padding: 0; }
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>${name}</h1>
+    <div class="contact-line"><strong>Email:</strong> ${personalInfo?.email || 'N/A'} &nbsp;|&nbsp; <strong>Nationality:</strong> ${personalInfo?.nationality || 'Pakistani'}</div>
+    <div class="headline">${personalInfo?.targetHeadline || 'Academic Candidate'}</div>
+  </div>
+
+  ${academicSummary ? `
+  <h2>Academic Profile & Objectives</h2>
+  <div class="section-content">${academicSummary}</div>
+  ` : ''}
+
+  <h2>Education & Academic Credentials</h2>
+  <div class="section-content">
+    ${education.map((edu: any) => `
+      <div class="entry">
+        <div class="entry-header"><span>${edu.degree}</span><span>${edu.institution}</span></div>
+        <div class="entry-sub"><span>Grade / Standing: ${edu.cgpa || 'N/A'}</span><span>${edu.year || ''}</span></div>
+        ${edu.highlights && edu.highlights.length ? `<ul>${edu.highlights.map((h: string) => `<li>${h}</li>`).join('')}</ul>` : ''}
+      </div>
+    `).join('')}
+  </div>
+
+  <h2>Key Academic & Research Projects</h2>
+  <div class="section-content">
+    ${academicProjects.map((proj: any) => `
+      <div class="entry">
+        <div class="entry-header"><span>${proj.title}</span><span style="font-size:12px; font-weight:normal; color:#64748b;">${proj.role || ''}</span></div>
+        <p style="margin:2px 0; font-size:12.5px;">${proj.description || ''}</p>
+        ${proj.outcomes && proj.outcomes.length ? `<ul>${proj.outcomes.map((o: string) => `<li>${o}</li>`).join('')}</ul>` : ''}
+      </div>
+    `).join('')}
+  </div>
+
+  <h2>Technical Competencies & Laboratory Methods</h2>
+  <div class="section-content">
+    ${technicalAndLabSkills.map((cat: any) => `
+      <div style="margin-bottom: 4px; font-size: 12.5px;">
+        <strong>${cat.category}:</strong> ${(cat.skills || []).join(', ')}
+      </div>
+    `).join('')}
+  </div>
+
+  <h2>Language Proficiencies</h2>
+  <div class="section-content">
+    ${languages.map((l: any) => `
+      <span style="display:inline-block; margin-right: 18px; font-size: 12.5px;">
+        <strong>${l.language}:</strong> ${l.proficiency}
+      </span>
+    `).join('')}
+  </div>
+</body>
+</html>`;
+      return {
+        format: 'html',
+        filename: `${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}_academic_cv.html`,
+        content: html,
+      };
+    }
+  }
+
+  exportMotivationLetter(letterData: any, format: 'markdown' | 'html' = 'markdown') {
+    if (!letterData) {
+      throw new BadRequestException('No motivation letter data provided for export');
+    }
+
+    const { title = 'Motivation Letter', targetInstitution = 'Admissions Committee', salutation = 'Dear Selection Committee,', letterContent = '', keyArguments = [], originalityTips = [], wordCount } = letterData;
+
+    if (format === 'markdown') {
+      let md = `# ${title}\n\n`;
+      md += `**Target Institution / Program:** ${targetInstitution}\n`;
+      md += `**Date:** ${new Date().toLocaleDateString('en-GB')}\n`;
+      if (wordCount) md += `**Word Count:** ${wordCount} words\n`;
+      md += `\n---\n\n`;
+      md += `${salutation}\n\n`;
+      md += `${letterContent}\n\n`;
+      md += `Sincerely,\n[Applicant Signature / Full Name]\n\n`;
+      md += `---\n\n`;
+      md += `### Core Strategic Arguments\n`;
+      keyArguments.forEach((arg: string) => {
+        md += `- ${arg}\n`;
+      });
+      md += `\n### Originality & Compliance Guidelines\n`;
+      originalityTips.forEach((tip: string) => {
+        md += `- ${tip}\n`;
+      });
+
+      return {
+        format: 'markdown',
+        filename: `motivation_letter_${targetInstitution.toLowerCase().replace(/[^a-z0-9]/g, '_')}.md`,
+        content: md,
+      };
+    } else {
+      let html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>${title} - ${targetInstitution}</title>
+  <style>
+    @page { size: A4; margin: 25mm; }
+    body { font-family: "Georgia", Cambria, serif; color: #1e293b; line-height: 1.7; margin: 0; padding: 40px; background: #fff; max-width: 800px; margin: auto; }
+    .letterhead { border-bottom: 1.5px solid #0f172a; padding-bottom: 12px; margin-bottom: 30px; }
+    .recipient { font-weight: bold; font-family: sans-serif; color: #334155; font-size: 13px; text-transform: uppercase; }
+    .date { float: right; font-size: 13px; color: #64748b; font-family: sans-serif; }
+    .subject { font-size: 18px; font-weight: bold; color: #0f172a; margin: 24px 0 16px 0; font-family: sans-serif; }
+    .salutation { font-weight: bold; margin-bottom: 16px; }
+    .body-text { font-size: 14.5px; text-align: justify; white-space: pre-line; }
+    .signature { margin-top: 36px; font-style: italic; }
+    .appendix { margin-top: 40px; padding-top: 16px; border-top: 1px dashed #cbd5e1; font-family: sans-serif; font-size: 12px; color: #64748b; }
+    @media print {
+      body { padding: 0; max-width: 100%; }
+      .appendix { page-break-before: always; }
+    }
+  </style>
+</head>
+<body>
+  <div class="letterhead">
+    <div class="date">Date: ${new Date().toLocaleDateString('en-GB')}</div>
+    <div class="recipient">To: Selection & Admissions Committee<br>${targetInstitution}</div>
+    <div style="clear: both;"></div>
+  </div>
+
+  <div class="subject">Subject: ${title}</div>
+  <div class="salutation">${salutation}</div>
+  <div class="body-text">${letterContent}</div>
+
+  <div class="signature">
+    Sincerely,<br><br>
+    <strong>[Applicant Name]</strong><br>
+    Scholarship Candidate
+  </div>
+
+  <div class="appendix">
+    <strong>Strategic Dossier Summary (For Applicant Review)</strong><br>
+    Word Count: ${wordCount || 'Compliant with institutional range'}<br>
+    Key Arguments: ${keyArguments.join('; ')}
+  </div>
+</body>
+</html>`;
+      return {
+        format: 'html',
+        filename: `motivation_letter_${targetInstitution.toLowerCase().replace(/[^a-z0-9]/g, '_')}.html`,
+        content: html,
+      };
+    }
+  }
 }
