@@ -64,8 +64,14 @@ services:
       SCHOLARSHIP_GRPC_URL: scholarship-service:50051
       REDIS_URL: redis://:${REDIS_PASSWORD:-redis_secret}@redis:6379
       DATABASE_URL: postgresql://identity_user:${IDENTITY_DB_PASSWORD:-identity_secret}@postgres:5432/identity_db?schema=public
+      IDENTITY_DATABASE_URL: postgresql://identity_user:${IDENTITY_DB_PASSWORD:-identity_secret}@postgres:5432/identity_db?schema=public
+      SCHOLARSHIP_DATABASE_URL: postgresql://scholarship_user:${SCHOLARSHIP_DB_PASSWORD:-scholarship_secret}@postgres:5432/scholarship_db?schema=public
+      APPLICATION_DATABASE_URL: postgresql://application_user:${APPLICATION_DB_PASSWORD:-application_secret}@postgres:5432/application_db?schema=public
+      DOCUMENT_STORAGE_DIR: /app/storage/documents
       SESSION_SECRET: ${SESSION_SECRET:-dev_session_secret_change_me_in_production_32chars}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+    volumes:
+      - document_storage:/app/storage/documents
     networks:
       - scholarship-network
     depends_on:
@@ -139,3 +145,4 @@ networks:
 volumes:
   postgres_data:
   redis_data:
+  document_storage:
