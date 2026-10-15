@@ -99,6 +99,17 @@ interface ApplicationItem {
   documents: ApplicationDoc[];
 }
 
+interface AdminOverview {
+  totalScholarships: number;
+  publishedScholarships: number;
+  draftScholarships: number;
+  totalRules: number;
+  verifiedRules: number;
+  pendingRules: number;
+  totalStudents: number;
+  totalApplications: number;
+}
+
 const DEFAULT_SCHOLARSHIP: Scholarship = {
   id: "2f76f1ca-0cd7-4098-92e6-52e04c4935c0",
   title: "Scholarship for international students of TUM",
@@ -284,7 +295,7 @@ export default function Home() {
   const [scholarships, setScholarships] = useState<Scholarship[]>(DEFAULT_SCHOLARSHIPS);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFunding, setSelectedFunding] = useState("ALL");
-  const [activeModal, setActiveModal] = useState<"NONE" | "ELIGIBILITY" | "DOCS" | "AUTH" | "PROFILE" | "APPLICATIONS" | "STUDIO">("NONE");
+  const [activeModal, setActiveModal] = useState<"NONE" | "ELIGIBILITY" | "DOCS" | "AUTH" | "PROFILE" | "APPLICATIONS" | "STUDIO" | "ADMIN">("NONE");
   const [selectedScholarship, setSelectedScholarship] = useState<Scholarship>(DEFAULT_SCHOLARSHIP);
 
   // Authentication State
@@ -309,6 +320,12 @@ export default function Home() {
   const [studioLetterResult, setStudioLetterResult] = useState<any>(null);
   const [studioCvResult, setStudioCvResult] = useState<any>(null);
   const [copiedNotice, setCopiedNotice] = useState(false);
+
+  // Admin Console State
+  const [adminOverview, setAdminOverview] = useState<AdminOverview | null>(null);
+  const [adminScholarships, setAdminScholarships] = useState<any[]>([]);
+  const [selectedAdminSch, setSelectedAdminSch] = useState<any | null>(null);
+  const [adminLoading, setAdminLoading] = useState(false);
 
   // Profile Form State
   const [profileNationality, setProfileNationality] = useState("PK");
@@ -343,6 +360,32 @@ export default function Home() {
       }
     } catch {
       // Ignored
+    }
+  };
+
+  const loadAdminData = async () => {
+    setAdminLoading(true);
+    try {
+      const [overviewRes, schRes] = await Promise.all([
+        fetch(`${apiUrl}/v1/admin/overview`, { credentials: "include" }),
+        fetch(`${apiUrl}/v1/admin/scholarships`, { credentials: "include" }),
+      ]);
+
+      if (overviewRes.ok) {
+        const ov = await overviewRes.json();
+        setAdminOverview(ov.metrics);
+      }
+      if (schRes.ok) {
+        const schs = await schRes.json();
+        setAdminScholarships(schs);
+        if (schs.length > 0 && !selectedAdminSch) {
+          setSelectedAdminSch(schs[0]);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load admin data", err);
+    } finally {
+      setAdminLoading(false);
     }
   };
 
@@ -395,7 +438,7 @@ export default function Home() {
           }
         }
       } catch (err) {
-        // Fallback to TUM
+        // Fallback to default records
       }
     }
     initData();
@@ -624,6 +667,50 @@ export default function Home() {
     setTimeout(() => setCopiedNotice(false), 2500);
   };
 
+  // Admin Actions
+  const handleOpenAdmin = () => {
+    if (!currentUser) {
+      setAuthMode("LOGIN");
+      setActiveModal("AUTH");
+      return;
+    }
+    setActiveModal("ADMIN");
+    loadAdminData();
+  };
+
+  const handleToggleScholarshipPublish = async (schId: string, currentStatus: string) => {
+    const nextStatus = currentStatus === "PUBLISHED" ? "DRAFT" : "PUBLISHED";
+    try {
+      const res = await fetch(`${apiUrl}/v1/admin/scholarships/${schId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      if (res.ok) {
+        loadAdminData();
+      }
+    } catch (err) {
+      console.error("Failed to update status", err);
+    }
+  };
+
+  const handleVerifyRule = async (ruleId: string, reviewStatus: string) => {
+    try {
+      const res = await fetch(`${apiUrl}/v1/admin/rules/${ruleId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ reviewStatus }),
+      });
+      if (res.ok) {
+        loadAdminData();
+      }
+    } catch (err) {
+      console.error("Failed to update rule review status", err);
+    }
+  };
+
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setProfileSaving(true);
@@ -813,6 +900,13 @@ export default function Home() {
                 </button>
 
                 <button
+                  onClick={handleOpenAdmin}
+                  className="px-3 py-1.5 rounded-xl border border-amber-200 bg-amber-50/70 hover:bg-amber-100 text-xs font-semibold text-amber-800 flex items-center gap-1.5 shadow-sm transition-colors"
+                >
+                  <span>🛡️ Review Console</span>
+                </button>
+
+                <button
                   onClick={() => setActiveModal("PROFILE")}
                   className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center gap-1.5 shadow-sm transition-colors"
                 >
@@ -959,6 +1053,193 @@ export default function Home() {
           })}
         </div>
       </main>
+
+      {/* MODAL: Admin Review Console */}
+      {activeModal === "ADMIN" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-4xl w-full max-h-[92vh] overflow-y-auto p-6 shadow-2xl">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🛡️</span>
+                <div>
+                  <h3 className="font-bold text-lg text-slate-900">Admin Review & Evidence Console</h3>
+                  <p className="text-xs text-slate-500">
+                    Inspect crawled opportunities, verify source evidence quotes, and manage publication states.
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setActiveModal("NONE")} className="text-slate-400 hover:text-slate-600 p-1">
+                ✕
+              </button>
+            </div>
+
+            {/* KPI Cards */}
+            {adminOverview && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 text-xs">
+                <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-100">
+                  <span className="text-slate-500 block">Total Opportunities</span>
+                  <span className="text-xl font-bold text-blue-900">{adminOverview.totalScholarships}</span>
+                  <span className="text-[10px] text-emerald-600 block mt-0.5">{adminOverview.publishedScholarships} Published</span>
+                </div>
+                <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-100">
+                  <span className="text-slate-500 block">Verified Evidence Rules</span>
+                  <span className="text-xl font-bold text-emerald-900">{adminOverview.verifiedRules}</span>
+                  <span className="text-[10px] text-slate-500 block mt-0.5">out of {adminOverview.totalRules} total</span>
+                </div>
+                <div className="p-3 bg-purple-50/60 rounded-xl border border-purple-100">
+                  <span className="text-slate-500 block">Active Applications</span>
+                  <span className="text-xl font-bold text-purple-900">{adminOverview.totalApplications}</span>
+                  <span className="text-[10px] text-purple-700 block mt-0.5">Tracked by students</span>
+                </div>
+                <div className="p-3 bg-amber-50/60 rounded-xl border border-amber-100">
+                  <span className="text-slate-500 block">Registered Students</span>
+                  <span className="text-xl font-bold text-amber-900">{adminOverview.totalStudents}</span>
+                  <span className="text-[10px] text-amber-700 block mt-0.5">Identity accounts</span>
+                </div>
+              </div>
+            )}
+
+            {/* Scholarships Management & Side-by-Side Review */}
+            <div className="mt-6">
+              <h4 className="font-bold text-sm text-slate-800 mb-3">Moderation Queue & Evidence Inspector</h4>
+
+              {adminLoading ? (
+                <div className="py-8 text-center text-xs text-slate-400">Loading admin data...</div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Left Column: List of Scholarships */}
+                  <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                    {adminScholarships.map((s) => (
+                      <div
+                        key={s.id}
+                        onClick={() => setSelectedAdminSch(s)}
+                        className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                          selectedAdminSch?.id === s.id
+                            ? "border-blue-600 bg-blue-50/40 shadow-sm"
+                            : "border-slate-200 bg-white hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                              s.opportunityStatus === "PUBLISHED"
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-amber-100 text-amber-800"
+                            }`}
+                          >
+                            {s.opportunityStatus}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {s.cycles[0]?.eligibilityRules?.length || 0} Rules
+                          </span>
+                        </div>
+                        <h5 className="font-bold text-slate-900 mt-1 line-clamp-1">{s.title}</h5>
+                        <p className="text-[11px] text-slate-500">{s.provider?.name}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Right Column: Detailed Side-by-Side Review Pane */}
+                  {selectedAdminSch && (
+                    <div className="md:col-span-2 p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-4 text-xs">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                        <div>
+                          <h4 className="font-bold text-sm text-slate-900">{selectedAdminSch.title}</h4>
+                          <a
+                            href={selectedAdminSch.officialUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[11px] text-blue-600 hover:underline flex items-center gap-1 mt-0.5"
+                          >
+                            Source Link: {selectedAdminSch.officialUrl.substring(0, 45)}... ↗
+                          </a>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() =>
+                              handleToggleScholarshipPublish(
+                                selectedAdminSch.id,
+                                selectedAdminSch.opportunityStatus
+                              )
+                            }
+                            className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-colors ${
+                              selectedAdminSch.opportunityStatus === "PUBLISHED"
+                                ? "bg-amber-100 hover:bg-amber-200 text-amber-800"
+                                : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                            }`}
+                          >
+                            {selectedAdminSch.opportunityStatus === "PUBLISHED"
+                              ? "Unpublish (Draft)"
+                              : "Approve & Publish"}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Rules Side-by-Side Table */}
+                      <div>
+                        <span className="font-bold text-slate-700 block mb-2">
+                          Extracted Rules & Official Quotes:
+                        </span>
+
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                          {selectedAdminSch.cycles[0]?.eligibilityRules?.map((rule: any) => (
+                            <div
+                              key={rule.id}
+                              className="p-3 rounded-xl bg-white border border-slate-200 text-xs flex flex-col gap-1.5"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-slate-800">
+                                  {rule.ruleType} ({rule.operator} {JSON.stringify(rule.structuredValue?.value)})
+                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span
+                                    className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                      rule.reviewStatus === "VERIFIED"
+                                        ? "bg-emerald-100 text-emerald-800"
+                                        : "bg-amber-100 text-amber-800"
+                                    }`}
+                                  >
+                                    {rule.reviewStatus}
+                                  </span>
+                                  {rule.reviewStatus !== "VERIFIED" ? (
+                                    <button
+                                      onClick={() => handleVerifyRule(rule.id, "VERIFIED")}
+                                      className="px-2 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-bold hover:bg-emerald-700"
+                                    >
+                                      ✓ Verify
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleVerifyRule(rule.id, "FLAGGED")}
+                                      className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold hover:bg-amber-200"
+                                    >
+                                      Flag
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                                <span className="text-[10px] font-bold text-slate-400 block uppercase">
+                                  Evidence Quote:
+                                </span>
+                                <p className="text-[11px] text-slate-600 italic">
+                                  &quot;{rule.structuredValue?.quote || "No explicit quote stored"}&quot;
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL: AI Application Studio */}
       {activeModal === "STUDIO" && (
