@@ -1,0 +1,75 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("IDENTITY_DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserRole {
+  STUDENT
+  REVIEWER
+  ADMIN
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  name         String?
+  role         UserRole  @default(STUDENT)
+  passwordHash String?   @map("password_hash")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  oauthIdentities OAuthIdentity[]
+  sessions        Session[]
+  profile         StudentProfile?
+
+  @@map("users")
+}
+
+model OAuthIdentity {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  provider        String   // "google"
+  providerSubject String   @map("provider_subject") // google sub
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerSubject])
+  @@map("oauth_identities")
+}
+
+model Session {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("sessions")
+}
+
+model StudentProfile {
+  userId         String   @id @map("user_id")
+  nationality    String?
+  degreeLevel    String?  @map("degree_level")
+  fieldOfStudy   String?  @map("field_of_study")
+  cgpa           Decimal? @db.Decimal(4, 2)
+  gradingScale   Decimal? @default(4.0) @map("grading_scale") @db.Decimal(4, 2)
+  graduationYear Int?     @map("graduation_year")
+  preferences    Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("student_profiles")
+}
+
