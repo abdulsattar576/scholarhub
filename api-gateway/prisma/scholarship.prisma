@@ -119,3 +119,4 @@ model DocumentRequirement {
 
   @@map("document_requirements")
 }
+
