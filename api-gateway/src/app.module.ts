@@ -6,9 +6,10 @@ import { AuthModule } from './auth/auth.module';
 import { ApplicationsModule } from './applications/applications.module';
 import { StudioModule } from './studio/studio.module';
 import { AdminModule } from './admin/admin.module';
+import { ReadinessModule } from './readiness/readiness.module';
 
 @Module({
-  imports: [ScholarshipsModule, AuthModule, ApplicationsModule, StudioModule, AdminModule],
+  imports: [ScholarshipsModule, AuthModule, ApplicationsModule, StudioModule, AdminModule, ReadinessModule],
   controllers: [AppController],
   providers: [AppService],
 })

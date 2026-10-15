@@ -49,3 +49,4 @@ export class AdminController {
     return await this.adminService.updateCycleStatus(cycleId, status);
   }
 }
+

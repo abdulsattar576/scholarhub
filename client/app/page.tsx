@@ -110,6 +110,23 @@ interface AdminOverview {
   totalApplications: number;
 }
 
+interface ReadinessGuide {
+  id: string;
+  title: string;
+  badge: string;
+  summary: string;
+  steps: Array<{
+    stepNumber: number;
+    title: string;
+    description: string;
+    warning?: string;
+  }>;
+  feesPkr?: string;
+  estimatedTime: string;
+  officialPortalUrl: string;
+  criticalTips: string[];
+}
+
 const DEFAULT_SCHOLARSHIP: Scholarship = {
   id: "2f76f1ca-0cd7-4098-92e6-52e04c4935c0",
   title: "Scholarship for international students of TUM",
@@ -295,7 +312,7 @@ export default function Home() {
   const [scholarships, setScholarships] = useState<Scholarship[]>(DEFAULT_SCHOLARSHIPS);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFunding, setSelectedFunding] = useState("ALL");
-  const [activeModal, setActiveModal] = useState<"NONE" | "ELIGIBILITY" | "DOCS" | "AUTH" | "PROFILE" | "APPLICATIONS" | "STUDIO" | "ADMIN">("NONE");
+  const [activeModal, setActiveModal] = useState<"NONE" | "ELIGIBILITY" | "DOCS" | "AUTH" | "PROFILE" | "APPLICATIONS" | "STUDIO" | "ADMIN" | "READINESS">("NONE");
   const [selectedScholarship, setSelectedScholarship] = useState<Scholarship>(DEFAULT_SCHOLARSHIP);
 
   // Authentication State
@@ -326,6 +343,10 @@ export default function Home() {
   const [adminScholarships, setAdminScholarships] = useState<any[]>([]);
   const [selectedAdminSch, setSelectedAdminSch] = useState<any | null>(null);
   const [adminLoading, setAdminLoading] = useState(false);
+
+  // Readiness Guide State
+  const [readinessTab, setReadinessTab] = useState<string>("hec");
+  const [readinessGuides, setReadinessGuides] = useState<ReadinessGuide[]>([]);
 
   // Profile Form State
   const [profileNationality, setProfileNationality] = useState("PK");
@@ -389,9 +410,25 @@ export default function Home() {
     }
   };
 
+  const loadReadinessGuides = async () => {
+    try {
+      const res = await fetch(`${apiUrl}/v1/readiness/guides`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.guides && data.guides.length > 0) {
+          setReadinessGuides(data.guides);
+        }
+      }
+    } catch {
+      // Fallback
+    }
+  };
+
   // Check Current Session, Load Applications & Load Scholarships
   useEffect(() => {
     async function initData() {
+      loadReadinessGuides();
+
       // 1. Check Auth Session
       try {
         const authRes = await fetch(`${apiUrl}/v1/auth/me`, {
@@ -711,6 +748,11 @@ export default function Home() {
     }
   };
 
+  const handleOpenReadinessGuide = (tabId: string = "hec") => {
+    setReadinessTab(tabId);
+    setActiveModal("READINESS");
+  };
+
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setProfileSaving(true);
@@ -836,6 +878,44 @@ export default function Home() {
     return matchesQuery;
   });
 
+  const activeGuide =
+    readinessGuides.find((g) => g.id === readinessTab) || {
+      id: "hec",
+      title: "HEC Pakistan Degree & Transcript Attestation",
+      badge: "Mandatory for All European Applications",
+      summary: "Higher Education Commission (HEC) attestation certifies the authenticity of your Bachelor/Master degree and transcripts for international visa and university admissions.",
+      feesPkr: "Rs. 1,000 per original document, Rs. 700 per photocopy",
+      estimatedTime: "10–15 business days (Courier) or Same Day (Urgent Walk-in)",
+      officialPortalUrl: "https://eservices.hec.gov.pk",
+      steps: [
+        {
+          stepNumber: 1,
+          title: "Online Profile & Application on HEC E-Services Portal",
+          description: "Register at eservices.hec.gov.pk. Enter all qualifications chronologically starting from Matriculation up to your highest degree.",
+        },
+        {
+          stepNumber: 2,
+          title: "Document Upload & Scrutiny",
+          description: "Upload clear color scans of your Original Degree, Final Transcript, and CNIC/Passport. Wait for online scrutiny approval (usually 2–4 days).",
+          warning: "Do not book an appointment or send documents via TCS until you receive the scrutiny completed email notification from HEC.",
+        },
+        {
+          stepNumber: 3,
+          title: "Select Attestation Mode (Courier vs Walk-in)",
+          description: "Courier Mode: Hand over original documents + fee challan to designated TCS centres. Urgent Walk-in: Schedule an in-person appointment at HEC Islamabad, Lahore, Karachi, Peshawar, or Quetta centers.",
+        },
+        {
+          stepNumber: 4,
+          title: "Sealed Envelope Request (If Required by University)",
+          description: "If your German/European university or scholarship requires direct official transcripts, tick the Sealed Envelope option on the portal. HEC will affix an official stamp across the envelope flap.",
+        },
+      ],
+      criticalTips: [
+        "Ensure the spelling of your name exactly matches your CNIC/Passport on both transcript and degree parchment.",
+        "Never laminate original documents; HEC applies a physical security ticket and embossing stamp to the back of the parchment.",
+      ],
+    };
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans">
       {/* Toast Alert */}
@@ -870,10 +950,13 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="flex items-center space-x-3">
-            <span className="hidden sm:inline-block text-xs px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 font-medium text-slate-600">
-              🇵🇰 Pakistan ➔ 🇩🇪 Germany Focus
-            </span>
+          <div className="flex items-center space-x-2 sm:space-x-3">
+            <button
+              onClick={() => handleOpenReadinessGuide("hec")}
+              className="px-3 py-1.5 rounded-xl border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100 text-xs font-semibold text-emerald-800 flex items-center gap-1 shadow-sm transition-colors"
+            >
+              <span>🇵🇰 Attestation Guide</span>
+            </button>
 
             {currentUser ? (
               <div className="flex items-center gap-2">
@@ -894,14 +977,14 @@ export default function Home() {
                     setSelectedScholarship(scholarships[0] || DEFAULT_SCHOLARSHIP);
                     setActiveModal("STUDIO");
                   }}
-                  className="px-3 py-1.5 rounded-xl border border-purple-200 bg-purple-50/70 hover:bg-purple-100 text-xs font-semibold text-purple-800 flex items-center gap-1.5 shadow-sm transition-colors"
+                  className="hidden sm:flex px-3 py-1.5 rounded-xl border border-purple-200 bg-purple-50/70 hover:bg-purple-100 text-xs font-semibold text-purple-800 items-center gap-1.5 shadow-sm transition-colors"
                 >
                   <span>✨ AI Studio</span>
                 </button>
 
                 <button
                   onClick={handleOpenAdmin}
-                  className="px-3 py-1.5 rounded-xl border border-amber-200 bg-amber-50/70 hover:bg-amber-100 text-xs font-semibold text-amber-800 flex items-center gap-1.5 shadow-sm transition-colors"
+                  className="hidden md:flex px-3 py-1.5 rounded-xl border border-amber-200 bg-amber-50/70 hover:bg-amber-100 text-xs font-semibold text-amber-800 items-center gap-1.5 shadow-sm transition-colors"
                 >
                   <span>🛡️ Review Console</span>
                 </button>
@@ -916,7 +999,7 @@ export default function Home() {
 
                 <button
                   onClick={handleLogout}
-                  className="px-3 py-1.5 rounded-xl text-xs font-medium text-slate-500 hover:text-red-600 transition-colors"
+                  className="px-2.5 py-1.5 rounded-xl text-xs font-medium text-slate-500 hover:text-red-600 transition-colors"
                 >
                   Sign Out
                 </button>
@@ -943,7 +1026,7 @@ export default function Home() {
             Verified Scholarship Discovery & Readiness
           </h1>
           <p className="mt-3 text-base sm:text-lg text-slate-600 max-w-2xl mx-auto">
-            Official-source verified funding for master&apos;s and bachelor&apos;s studies abroad. Check eligibility rules and prepare required documents without guesswork.
+            Official-source verified funding for master&apos;s and bachelor&apos;s studies in Germany & Europe. Navigate HEC attestation, German certified translations, and application deadlines.
           </p>
 
           {/* Search Bar */}
@@ -1053,6 +1136,145 @@ export default function Home() {
           })}
         </div>
       </main>
+
+      {/* MODAL: Pakistan Credential & Attestation Guide */}
+      {activeModal === "READINESS" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-3xl w-full max-h-[92vh] overflow-y-auto p-6 shadow-2xl">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🇵🇰</span>
+                <div>
+                  <h3 className="font-bold text-lg text-slate-900">Pakistan Credential & Attestation Guide</h3>
+                  <p className="text-xs text-slate-500">
+                    Step-by-step verification rules for HEC, IBCC, German Certified Translations, and Anabin H+ status.
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setActiveModal("NONE")} className="text-slate-400 hover:text-slate-600 p-1">
+                ✕
+              </button>
+            </div>
+
+            {/* Navigation Tabs */}
+            <div className="flex border-b border-slate-200 mt-4 text-xs font-semibold overflow-x-auto">
+              <button
+                onClick={() => setReadinessTab("hec")}
+                className={`pb-2.5 px-3 whitespace-nowrap transition-colors ${
+                  readinessTab === "hec"
+                    ? "border-b-2 border-emerald-600 text-emerald-700 font-bold"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                🎓 HEC Degree Attestation
+              </button>
+              <button
+                onClick={() => setReadinessTab("ibcc")}
+                className={`pb-2.5 px-3 whitespace-nowrap transition-colors ${
+                  readinessTab === "ibcc"
+                    ? "border-b-2 border-emerald-600 text-emerald-700 font-bold"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                📜 IBCC Equivalence
+              </button>
+              <button
+                onClick={() => setReadinessTab("germanTranslation")}
+                className={`pb-2.5 px-3 whitespace-nowrap transition-colors ${
+                  readinessTab === "germanTranslation"
+                    ? "border-b-2 border-emerald-600 text-emerald-700 font-bold"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                🇩🇪 German Certified Translations
+              </button>
+              <button
+                onClick={() => setReadinessTab("anabin")}
+                className={`pb-2.5 px-3 whitespace-nowrap transition-colors ${
+                  readinessTab === "anabin"
+                    ? "border-b-2 border-emerald-600 text-emerald-700 font-bold"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                🏛️ Anabin H+ Institution Check
+              </button>
+            </div>
+
+            {/* Guide Content Display */}
+            <div className="mt-4 space-y-4 text-xs">
+              <div className="p-3.5 bg-emerald-50/60 rounded-xl border border-emerald-100 flex items-start justify-between gap-3">
+                <div>
+                  <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                    {activeGuide.badge}
+                  </span>
+                  <h4 className="font-bold text-sm text-slate-900 mt-1">{activeGuide.title}</h4>
+                  <p className="text-slate-600 mt-0.5">{activeGuide.summary}</p>
+                </div>
+                <a
+                  href={activeGuide.officialPortalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-medium text-xs whitespace-nowrap shadow-sm"
+                >
+                  Official Portal ↗
+                </a>
+              </div>
+
+              {/* Meta details: Fees and Timeline */}
+              <div className="grid grid-cols-2 gap-3">
+                {activeGuide.feesPkr && (
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                    <span className="text-[11px] font-bold text-slate-500 block uppercase">Standard Fees:</span>
+                    <span className="font-semibold text-slate-800 mt-0.5 block">{activeGuide.feesPkr}</span>
+                  </div>
+                )}
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                  <span className="text-[11px] font-bold text-slate-500 block uppercase">Estimated Processing:</span>
+                  <span className="font-semibold text-slate-800 mt-0.5 block">{activeGuide.estimatedTime}</span>
+                </div>
+              </div>
+
+              {/* Step-by-Step Instructions */}
+              <div>
+                <span className="font-bold text-sm text-slate-800 block mb-2">Step-by-Step Execution:</span>
+                <div className="space-y-2.5">
+                  {activeGuide.steps.map((st: any) => (
+                    <div
+                      key={st.stepNumber}
+                      className="p-3 rounded-xl bg-white border border-slate-200 flex flex-col gap-1"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-full bg-slate-900 text-white text-[11px] font-bold flex items-center justify-center">
+                          {st.stepNumber}
+                        </span>
+                        <h5 className="font-bold text-slate-800">{st.title}</h5>
+                      </div>
+                      <p className="text-slate-600 pl-7">{st.description}</p>
+                      {st.warning && (
+                        <div className="mt-1 ml-7 p-2 bg-amber-50 rounded-lg border border-amber-200/80 text-[11px] text-amber-800">
+                          ⚠️ <b>Warning:</b> {st.warning}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Critical Tips */}
+              {activeGuide.criticalTips && (
+                <div className="p-3 rounded-xl bg-blue-50/60 border border-blue-100">
+                  <span className="font-bold text-blue-900 block mb-1">Essential Tips for Pakistani Applicants:</span>
+                  <ul className="list-disc list-inside text-blue-800 space-y-1">
+                    {activeGuide.criticalTips.map((tip: string, idx: number) => (
+                      <li key={idx}>{tip}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL: Admin Review Console */}
       {activeModal === "ADMIN" && (
@@ -1535,9 +1757,18 @@ export default function Home() {
 
                     {/* Document Readiness Checklist */}
                     <div className="mt-2 pt-3 border-t border-slate-200 space-y-2">
-                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                        Document Checklist & Attestation
-                      </span>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                          Document Checklist & Attestation
+                        </span>
+                        <button
+                          onClick={() => handleOpenReadinessGuide("hec")}
+                          className="text-[11px] text-emerald-700 font-semibold hover:underline"
+                        >
+                          Need Help with Attestation? ➔
+                        </button>
+                      </div>
+
                       {app.documents.map((doc) => (
                         <div
                           key={doc.id}
@@ -1576,7 +1807,16 @@ export default function Home() {
                                 }
                                 className="rounded text-blue-600"
                               />
-                              HEC / IBCC Attested
+                              <span
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  handleOpenReadinessGuide("hec");
+                                }}
+                                className="hover:underline text-emerald-800 font-medium"
+                                title="Click to view HEC/IBCC Attestation guide"
+                              >
+                                HEC / IBCC Attested ℹ
+                              </span>
                             </label>
 
                             <label className="flex items-center gap-1.5 cursor-pointer text-slate-600">
@@ -1588,7 +1828,16 @@ export default function Home() {
                                 }
                                 className="rounded text-blue-600"
                               />
-                              Certified German Translation
+                              <span
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  handleOpenReadinessGuide("germanTranslation");
+                                }}
+                                className="hover:underline text-purple-800 font-medium"
+                                title="Click to view German Translation guide"
+                              >
+                                Certified German Translation ℹ
+                              </span>
                             </label>
                           </div>
                         </div>
