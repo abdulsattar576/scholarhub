@@ -127,6 +127,18 @@ interface ReadinessGuide {
   criticalTips: string[];
 }
 
+interface NotificationItem {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: string;
+  priority: string;
+  isRead: boolean;
+  link?: string;
+  createdAt: string;
+}
+
 const DEFAULT_SCHOLARSHIP: Scholarship = {
   id: "2f76f1ca-0cd7-4098-92e6-52e04c4935c0",
   title: "Scholarship for international students of TUM",
@@ -349,6 +361,11 @@ export default function Home() {
   // Document Export State
   const [exportingDoc, setExportingDoc] = useState(false);
 
+  // Student Notifications State
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+
   // Readiness Guide State
   const [readinessTab, setReadinessTab] = useState<string>("hec");
   const [readinessGuides, setReadinessGuides] = useState<ReadinessGuide[]>([]);
@@ -386,6 +403,53 @@ export default function Home() {
       }
     } catch {
       // Ignored
+    }
+  };
+
+  const loadNotifications = async () => {
+    try {
+      const res = await fetch(`${apiUrl}/v1/notifications`, {
+        credentials: "include",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data.notifications || []);
+        setUnreadNotificationCount(data.unreadCount || 0);
+      }
+    } catch {
+      // Ignored
+    }
+  };
+
+  const handleMarkNotificationRead = async (id: string) => {
+    try {
+      const res = await fetch(`${apiUrl}/v1/notifications/${id}/read`, {
+        method: "PATCH",
+        credentials: "include",
+      });
+      if (res.ok) {
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+        );
+        setUnreadNotificationCount((prev) => Math.max(0, prev - 1));
+      }
+    } catch (err) {
+      console.error("Failed to mark notification as read", err);
+    }
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    try {
+      const res = await fetch(`${apiUrl}/v1/notifications/read-all`, {
+        method: "PATCH",
+        credentials: "include",
+      });
+      if (res.ok) {
+        setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+        setUnreadNotificationCount(0);
+      }
+    } catch (err) {
+      console.error("Failed to mark all as read", err);
     }
   };
 
@@ -486,12 +550,15 @@ export default function Home() {
     initData();
   }, [apiUrl]);
 
-  // Load applications whenever user logs in
+  // Load applications and notifications whenever user logs in
   useEffect(() => {
     if (currentUser) {
       loadApplications();
+      loadNotifications();
     } else {
       setApplications([]);
+      setNotifications([]);
+      setUnreadNotificationCount(0);
     }
   }, [currentUser]);
 
@@ -1051,6 +1118,100 @@ export default function Home() {
                 >
                   <span>🛡️ Review Console</span>
                 </button>
+
+                {/* Notification Bell Dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={() => setNotificationsOpen(!notificationsOpen)}
+                    className="relative p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center gap-1 shadow-sm transition-colors"
+                    title="Student Alerts & Reminders"
+                  >
+                    <span>🔔</span>
+                    <span className="hidden sm:inline">Alerts</span>
+                    {unreadNotificationCount > 0 && (
+                      <span className="px-1.5 py-0.2 rounded-full bg-red-600 text-white text-[10px] font-bold animate-pulse">
+                        {unreadNotificationCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {notificationsOpen && (
+                    <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl border border-slate-200 shadow-2xl z-50 p-4 text-xs">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-slate-900 text-sm">Notifications &amp; Alerts</span>
+                          {unreadNotificationCount > 0 && (
+                            <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-800 font-bold text-[10px]">
+                              {unreadNotificationCount} new
+                            </span>
+                          )}
+                        </div>
+                        {unreadNotificationCount > 0 && (
+                          <button
+                            onClick={handleMarkAllNotificationsRead}
+                            className="text-[11px] text-blue-600 hover:underline font-semibold"
+                          >
+                            Mark all as read
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="mt-3 space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
+                        {notifications.length === 0 ? (
+                          <div className="py-8 text-center text-slate-400">
+                            <span className="text-2xl block mb-1">🎉</span>
+                            No notifications yet. You are all caught up!
+                          </div>
+                        ) : (
+                          notifications.map((n) => (
+                            <div
+                              key={n.id}
+                              onClick={() => {
+                                if (!n.isRead) handleMarkNotificationRead(n.id);
+                              }}
+                              className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                                !n.isRead
+                                  ? "bg-blue-50/50 border-blue-200 shadow-sm"
+                                  : "bg-slate-50/50 border-slate-100 text-slate-600"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between font-bold text-slate-800">
+                                <span className="line-clamp-1 flex items-center gap-1.5">
+                                  {!n.isRead && (
+                                    <span className="w-2 h-2 rounded-full bg-blue-600 inline-block"></span>
+                                  )}
+                                  {n.title}
+                                </span>
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[9px] uppercase font-bold ${
+                                    n.priority === "URGENT"
+                                      ? "bg-red-100 text-red-800"
+                                      : n.priority === "HIGH"
+                                      ? "bg-amber-100 text-amber-800"
+                                      : "bg-slate-200 text-slate-700"
+                                  }`}
+                                >
+                                  {n.priority}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-[11px] text-slate-600 leading-relaxed">
+                                {n.message}
+                              </p>
+                              <span className="mt-1.5 block text-[10px] text-slate-400 font-mono">
+                                {new Date(n.createdAt).toLocaleDateString("en-GB", {
+                                  day: "numeric",
+                                  month: "short",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 <button
                   onClick={() => setActiveModal("PROFILE")}
