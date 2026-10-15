@@ -72,6 +72,33 @@ interface CurrentUser {
   profile?: StudentProfile;
 }
 
+interface ApplicationDoc {
+  id: string;
+  documentType: string;
+  requirementLevel: string;
+  isPrepared: boolean;
+  attestationDone: boolean;
+  translationDone: boolean;
+  instructions?: string;
+  notes?: string;
+}
+
+interface ApplicationItem {
+  id: string;
+  userId: string;
+  scholarshipId: string;
+  scholarshipTitle: string;
+  providerName: string;
+  cycleLabel?: string;
+  targetDeadline?: string;
+  status: "PLANNING" | "PREPARING" | "READY" | "SUBMITTED" | "UNDER_REVIEW" | "ACCEPTED" | "REJECTED";
+  notes?: string;
+  progressPercent: number;
+  totalDocs: number;
+  preparedDocs: number;
+  documents: ApplicationDoc[];
+}
+
 const DEFAULT_SCHOLARSHIP: Scholarship = {
   id: "2f76f1ca-0cd7-4098-92e6-52e04c4935c0",
   title: "Scholarship for international students of TUM",
@@ -131,7 +158,7 @@ export default function Home() {
   const [scholarships, setScholarships] = useState<Scholarship[]>([DEFAULT_SCHOLARSHIP]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFunding, setSelectedFunding] = useState("ALL");
-  const [activeModal, setActiveModal] = useState<"NONE" | "ELIGIBILITY" | "DOCS" | "AUTH" | "PROFILE">("NONE");
+  const [activeModal, setActiveModal] = useState<"NONE" | "ELIGIBILITY" | "DOCS" | "AUTH" | "PROFILE" | "APPLICATIONS">("NONE");
   const [selectedScholarship, setSelectedScholarship] = useState<Scholarship>(DEFAULT_SCHOLARSHIP);
 
   // Authentication State
@@ -142,6 +169,11 @@ export default function Home() {
   const [authName, setAuthName] = useState("");
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
+
+  // Applications & Readiness State
+  const [applications, setApplications] = useState<ApplicationItem[]>([]);
+  const [selectedApp, setSelectedApp] = useState<ApplicationItem | null>(null);
+  const [trackToast, setTrackToast] = useState("");
 
   // Profile Form State
   const [profileNationality, setProfileNationality] = useState("PK");
@@ -165,7 +197,25 @@ export default function Home() {
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
-  // Check Current Session & Load Scholarships
+  const loadApplications = async () => {
+    try {
+      const res = await fetch(`${apiUrl}/v1/applications`, {
+        credentials: "include",
+      });
+      if (res.ok) {
+        const apps = await res.json();
+        setApplications(apps);
+        if (selectedApp) {
+          const found = apps.find((a: ApplicationItem) => a.id === selectedApp.id);
+          if (found) setSelectedApp(found);
+        }
+      }
+    } catch {
+      // Ignored
+    }
+  };
+
+  // Check Current Session, Load Applications & Load Scholarships
   useEffect(() => {
     async function initData() {
       // 1. Check Auth Session
@@ -220,6 +270,15 @@ export default function Home() {
     initData();
   }, [apiUrl]);
 
+  // Load applications whenever user logs in
+  useEffect(() => {
+    if (currentUser) {
+      loadApplications();
+    } else {
+      setApplications([]);
+    }
+  }, [currentUser]);
+
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthLoading(true);
@@ -269,6 +328,96 @@ export default function Home() {
       // Ignored
     }
     setCurrentUser(null);
+    setApplications([]);
+  };
+
+  const handleTrackScholarship = async (sch: Scholarship) => {
+    if (!currentUser) {
+      setAuthMode("LOGIN");
+      setActiveModal("AUTH");
+      return;
+    }
+
+    try {
+      const docs = sch.documentRequirements || DEFAULT_SCHOLARSHIP.documentRequirements || [];
+      const res = await fetch(`${apiUrl}/v1/applications`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          scholarshipId: sch.id,
+          scholarshipTitle: sch.title,
+          providerName: sch.providerName,
+          cycleLabel: sch.activeCycle?.cycleLabel || "2026/27 Intake",
+          targetDeadline: sch.activeCycle?.deadlineAtIso || undefined,
+          initialDocuments: docs.map((d) => ({
+            documentType: d.documentType,
+            requirementLevel: d.requirementLevel,
+            instructions: d.instructions,
+          })),
+        }),
+      });
+
+      if (res.ok) {
+        await loadApplications();
+        setTrackToast(`Added "${sch.title}" to your Application Tracker!`);
+        setTimeout(() => setTrackToast(""), 4000);
+      }
+    } catch (err) {
+      console.error("Failed to track scholarship", err);
+    }
+  };
+
+  const handleUpdateAppStatus = async (appId: string, status: ApplicationItem["status"]) => {
+    try {
+      const res = await fetch(`${apiUrl}/v1/applications/${appId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) {
+        await loadApplications();
+      }
+    } catch (err) {
+      console.error("Failed to update status", err);
+    }
+  };
+
+  const handleToggleDocumentCheck = async (
+    appId: string,
+    docId: string,
+    field: "isPrepared" | "attestationDone" | "translationDone",
+    currentVal: boolean
+  ) => {
+    try {
+      const res = await fetch(`${apiUrl}/v1/applications/${appId}/documents/${docId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ [field]: !currentVal }),
+      });
+      if (res.ok) {
+        await loadApplications();
+      }
+    } catch (err) {
+      console.error("Failed to update document status", err);
+    }
+  };
+
+  const handleDeleteApp = async (appId: string) => {
+    try {
+      const res = await fetch(`${apiUrl}/v1/applications/${appId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (res.ok) {
+        setSelectedApp(null);
+        await loadApplications();
+      }
+    } catch (err) {
+      console.error("Failed to delete application", err);
+    }
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -393,6 +542,23 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans">
+      {/* Toast Alert */}
+      {trackToast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-slate-700 animate-in fade-in slide-in-from-bottom-3 duration-300">
+          <span className="text-emerald-400 font-bold">✓</span>
+          <span className="text-xs font-medium">{trackToast}</span>
+          <button
+            onClick={() => {
+              setActiveModal("APPLICATIONS");
+              setTrackToast("");
+            }}
+            className="text-xs text-blue-400 font-bold hover:underline ml-2"
+          >
+            View Tracker
+          </button>
+        </div>
+      )}
+
       {/* Top Navigation */}
       <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -416,12 +582,25 @@ export default function Home() {
             {currentUser ? (
               <div className="flex items-center gap-2">
                 <button
+                  onClick={() => setActiveModal("APPLICATIONS")}
+                  className="relative px-3 py-1.5 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100/70 text-xs font-semibold text-blue-800 flex items-center gap-1.5 shadow-sm transition-colors"
+                >
+                  <span>📋 Tracker</span>
+                  {applications.length > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-blue-600 text-white text-[10px]">
+                      {applications.length}
+                    </span>
+                  )}
+                </button>
+
+                <button
                   onClick={() => setActiveModal("PROFILE")}
                   className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center gap-1.5 shadow-sm transition-colors"
                 >
                   <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                   {currentUser.name || currentUser.email.split("@")[0]}
                 </button>
+
                 <button
                   onClick={handleLogout}
                   className="px-3 py-1.5 rounded-xl text-xs font-medium text-slate-500 hover:text-red-600 transition-colors"
@@ -494,54 +673,213 @@ export default function Home() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredScholarships.map((sch) => (
-            <div
-              key={sch.id}
-              className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col justify-between shadow-sm hover:shadow-md transition-shadow"
-            >
-              <div>
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200/60 uppercase">
-                    {sch.fundingType === 1 ? "Fully Funded" : sch.fundingType === 2 ? "Partial (500–1,800 €)" : "Stipend"}
-                  </span>
-                  <span className="text-xs text-slate-400 font-mono">
-                    {sch.targetCountryCodes?.join(", ") || "DE"}
-                  </span>
-                </div>
-
-                <h3 className="text-base font-bold text-slate-900 mt-2.5 line-clamp-2">
-                  {sch.title}
-                </h3>
-                <p className="text-xs text-slate-500 mt-1 font-medium">{sch.providerName}</p>
-
-                {sch.activeCycle && (
-                  <div className="mt-4 p-2.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
-                    <span className="text-slate-500 font-medium">Next Deadline:</span>
-                    <span className="font-bold text-red-600">
-                      {sch.activeCycle.deadlineLocalDate || "2026-10-15"}
+          {filteredScholarships.map((sch) => {
+            const isTracked = applications.some((a) => a.scholarshipId === sch.id);
+            return (
+              <div
+                key={sch.id}
+                className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col justify-between shadow-sm hover:shadow-md transition-shadow"
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200/60 uppercase">
+                      {sch.fundingType === 1 ? "Fully Funded" : sch.fundingType === 2 ? "Partial (500–1,800 €)" : "Stipend"}
+                    </span>
+                    <span className="text-xs text-slate-400 font-mono">
+                      {sch.targetCountryCodes?.join(", ") || "DE"}
                     </span>
                   </div>
-                )}
-              </div>
 
-              <div className="mt-6 pt-4 border-t border-slate-100 flex items-center gap-2">
-                <button
-                  onClick={() => handleOpenEligibility(sch)}
-                  className="flex-1 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-colors shadow-sm"
-                >
-                  Check Eligibility
-                </button>
-                <button
-                  onClick={() => handleOpenDocs(sch)}
-                  className="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors"
-                >
-                  Docs
-                </button>
+                  <h3 className="text-base font-bold text-slate-900 mt-2.5 line-clamp-2">
+                    {sch.title}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1 font-medium">{sch.providerName}</p>
+
+                  {sch.activeCycle && (
+                    <div className="mt-4 p-2.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
+                      <span className="text-slate-500 font-medium">Next Deadline:</span>
+                      <span className="font-bold text-red-600">
+                        {sch.activeCycle.deadlineLocalDate || "2026-10-15"}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-slate-100 flex items-center gap-2">
+                  <button
+                    onClick={() => handleOpenEligibility(sch)}
+                    className="flex-1 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-colors shadow-sm"
+                  >
+                    Check Eligibility
+                  </button>
+                  <button
+                    onClick={() => handleTrackScholarship(sch)}
+                    className={`px-3 py-2 rounded-xl border text-xs font-semibold transition-colors flex items-center gap-1 ${
+                      isTracked
+                        ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                        : "border-blue-200 bg-blue-50/60 hover:bg-blue-100 text-blue-700"
+                    }`}
+                  >
+                    {isTracked ? "✓ Tracked" : "+ Track"}
+                  </button>
+                  <button
+                    onClick={() => handleOpenDocs(sch)}
+                    className="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors"
+                  >
+                    Docs
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </main>
+
+      {/* MODAL: Applications Hub & Document Tracker */}
+      {activeModal === "APPLICATIONS" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-xl">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div>
+                <h3 className="font-bold text-lg text-slate-900">Application Readiness Tracker</h3>
+                <p className="text-xs text-slate-500">Track and prepare required documents for your targeted scholarships.</p>
+              </div>
+              <button onClick={() => setActiveModal("NONE")} className="text-slate-400 hover:text-slate-600 p-1">
+                ✕
+              </button>
+            </div>
+
+            {applications.length === 0 ? (
+              <div className="py-12 text-center">
+                <div className="text-3xl mb-2">📋</div>
+                <h4 className="font-bold text-slate-800 text-sm">No applications tracked yet</h4>
+                <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                  Click the <b>&quot;+ Track&quot;</b> button on any scholarship card to add it to your pipeline and track document readiness.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-5 space-y-4">
+                {applications.map((app) => (
+                  <div
+                    key={app.id}
+                    className="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 flex flex-col gap-3"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <h4 className="font-bold text-sm text-slate-900">{app.scholarshipTitle}</h4>
+                        <p className="text-xs text-slate-500">{app.providerName} • {app.cycleLabel || "Cycle"}</p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {/* Status Select */}
+                        <select
+                          value={app.status}
+                          onChange={(e) => handleUpdateAppStatus(app.id, e.target.value as any)}
+                          className="px-2.5 py-1 rounded-lg border border-slate-300 text-xs font-semibold bg-white outline-none"
+                        >
+                          <option value="PLANNING">Planning</option>
+                          <option value="PREPARING">Preparing</option>
+                          <option value="READY">Ready to Apply</option>
+                          <option value="SUBMITTED">Submitted</option>
+                          <option value="UNDER_REVIEW">Under Review</option>
+                          <option value="ACCEPTED">Accepted 🎉</option>
+                          <option value="REJECTED">Rejected</option>
+                        </select>
+
+                        <button
+                          onClick={() => handleDeleteApp(app.id)}
+                          className="text-xs text-slate-400 hover:text-red-600 p-1"
+                          title="Untrack application"
+                        >
+                          🗑
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Readiness Progress Bar */}
+                    <div>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="font-medium text-slate-600">Document Readiness:</span>
+                        <span className="font-bold text-slate-800">
+                          {app.preparedDocs} of {app.totalDocs} Ready ({app.progressPercent}%)
+                        </span>
+                      </div>
+                      <div className="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
+                        <div
+                          className="h-full bg-emerald-500 transition-all duration-300"
+                          style={{ width: `${app.progressPercent}%` }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    {/* Document Readiness Checklist */}
+                    <div className="mt-2 pt-3 border-t border-slate-200 space-y-2">
+                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                        Document Checklist & Attestation
+                      </span>
+                      {app.documents.map((doc) => (
+                        <div
+                          key={doc.id}
+                          className="p-2.5 rounded-xl bg-white border border-slate-200/80 text-xs flex flex-col gap-1.5"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-slate-800">{doc.documentType.replace(/_/g, " ")}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
+                              {doc.requirementLevel}
+                            </span>
+                          </div>
+
+                          {doc.instructions && (
+                            <p className="text-[11px] text-slate-500">{doc.instructions}</p>
+                          )}
+
+                          <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px]">
+                            <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-700">
+                              <input
+                                type="checkbox"
+                                checked={doc.isPrepared}
+                                onChange={() =>
+                                  handleToggleDocumentCheck(app.id, doc.id, "isPrepared", doc.isPrepared)
+                                }
+                                className="rounded text-blue-600"
+                              />
+                              Prepared
+                            </label>
+
+                            <label className="flex items-center gap-1.5 cursor-pointer text-slate-600">
+                              <input
+                                type="checkbox"
+                                checked={doc.attestationDone}
+                                onChange={() =>
+                                  handleToggleDocumentCheck(app.id, doc.id, "attestationDone", doc.attestationDone)
+                                }
+                                className="rounded text-blue-600"
+                              />
+                              HEC / IBCC Attested
+                            </label>
+
+                            <label className="flex items-center gap-1.5 cursor-pointer text-slate-600">
+                              <input
+                                type="checkbox"
+                                checked={doc.translationDone}
+                                onChange={() =>
+                                  handleToggleDocumentCheck(app.id, doc.id, "translationDone", doc.translationDone)
+                                }
+                                className="rounded text-blue-600"
+                              />
+                              Certified German Translation
+                            </label>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* MODAL: Auth (Sign In / Register) */}
       {activeModal === "AUTH" && (
