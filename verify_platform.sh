@@ -75,3 +75,4 @@ echo -e "${GREEN}======================================================${NC}"
 echo -e "${GREEN}  ALL 10 VERIFICATION CHECKS PASSED PERFECTLY!        ${NC}"
 echo -e "${GREEN}  ScholarHub Platform is 100% verified and operational.${NC}"
 echo -e "${GREEN}======================================================${NC}"
+
