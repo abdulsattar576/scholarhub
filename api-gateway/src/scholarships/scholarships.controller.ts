@@ -32,12 +32,13 @@ export class ScholarshipsController {
   @Post(':id/evaluate')
   async evaluate(
     @Param('id') id: string,
-    @Body() body: { cycleId?: string; studentProfile: any },
+    @Body() body: any,
   ) {
+    const studentProfile = body?.studentProfile || body || {};
     return this.scholarshipsService.evaluateEligibility({
       scholarshipId: id,
       cycleId: body?.cycleId,
-      studentProfile: body?.studentProfile || {},
+      studentProfile,
     });
   }
 }
