@@ -36,5 +36,5 @@ RUN mkdir -p /app/storage/documents
 
 EXPOSE 3001
 
-CMD ["node", "dist/main"]
+CMD ["sh", "-c", "if [ -f dist/src/main.js ]; then node dist/src/main.js; else node dist/main.js; fi"]
 
